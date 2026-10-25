@@ -18,12 +18,12 @@
     },
     "android": {
       "package": "com.josephlopezzzz.navo",
+      "versionCode": 2,
       "predictiveBackGestureEnabled": true,
       "adaptiveIcon": {
         "backgroundColor": "#062349",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundImage": "./assets/android-icon-background.png"
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
