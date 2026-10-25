@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.josephlopezzzz.navo",
-      "versionCode": 2,
+      "versionCode": 3,
       "predictiveBackGestureEnabled": true,
       "adaptiveIcon": {
         "backgroundColor": "#07182F",
@@ -41,8 +41,8 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Navo uses location to follow your selected route while a trip is active.",
-          "locationAlwaysAndWhenInUsePermission": "Navo uses background location only during an active destination trip so it can alert you near your stop.",
+          "locationWhenInUsePermission": "Navo uses your location to show your position on the map and track a destination alarm while it is on.",
+          "locationAlwaysAndWhenInUsePermission": "Navo uses background location only while a destination alarm or trip is active so it can alert you near your stop.",
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true,
@@ -66,7 +66,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#07182F"
         }
-      ]
+      ],
+      "@maplibre/maplibre-react-native"
     ],
     "extra": {
       "eas": {

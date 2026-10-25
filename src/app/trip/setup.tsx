@@ -5,8 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { Body, DataSeal, Divider, PrimaryButton, Screen, ScreenTitle, SectionTitle, Subtle } from '../../components/ui';
 import { makeJourneyRoute, railLines } from '../../data/routes';
 import type { AlertMode, Stop, Trip } from '../../domain/models';
-import { beginBackgroundLocation, endBackgroundLocation } from '../../services/background-location';
-import { readAppState, writeAppState } from '../../services/storage';
+import { beginBackgroundLocation } from '../../services/background-location';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
 
@@ -76,31 +75,27 @@ export default function TripSetupScreen() {
         offRouteCount: 0,
         routeDeviationSent: false,
       };
-      const stored = await readAppState();
       const locationReady = journey.coordinateStatus === 'complete' && journey.stops.every((stop) => stop.latitude !== undefined && stop.longitude !== undefined);
-      let nextState = {
-        ...stored,
+      await app.mutateState((current) => ({
+        ...current,
         activeTrip: trip,
         activeRoute: journey,
-        settings: { ...stored.settings, sleepMode: alertMode === 'destination-only' },
+        settings: { ...current.settings, sleepMode: alertMode === 'destination-only' },
         lastLocationAt: null,
         lastLocation: null,
         lastLocationAccuracyM: null,
         lastTripNotice: null,
-        locationProblem: locationReady ? null : 'This route has no verified location points. Use manual stop confirmation.',
-      };
-      await endBackgroundLocation();
-      await writeAppState(nextState);
-      app.updateState(nextState);
+        locationProblem: locationReady || current.destinationAlarms.some((alarm) => alarm.enabled)
+          ? null
+          : 'This route has no verified location points. Use manual stop confirmation.',
+      }));
 
       if (locationReady) {
         try {
-          await beginBackgroundLocation(stored.settings);
+          await beginBackgroundLocation(app.settings);
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Location alert setup did not finish.';
-          nextState = { ...nextState, locationProblem: message };
-          await writeAppState(nextState);
-          app.updateState(nextState);
+          await app.mutateState((current) => ({ ...current, locationProblem: message }));
           Alert.alert('Trip started in manual mode', message, [{ text: 'Continue', onPress: () => router.replace('/trip/active') }]);
           return;
         }

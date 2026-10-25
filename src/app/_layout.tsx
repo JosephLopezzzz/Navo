@@ -5,7 +5,7 @@ import { Appearance } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { AppStateProvider, useAppState } from '../state/AppStateProvider';
 import { useNavoColors } from '../theme/colors';
-import '../services/background-location';
+import { deliverPendingDestinationAlarmEvents } from '../services/background-location';
 import * as Notifications from 'expo-notifications';
 
 void SplashScreen.preventAutoHideAsync();
@@ -38,6 +38,9 @@ function RootNavigator() {
   useEffect(() => {
     if (app.ready || app.storageProblem) void SplashScreen.hideAsync();
   }, [app.ready, app.storageProblem]);
+  useEffect(() => {
+    if (app.ready) void deliverPendingDestinationAlarmEvents();
+  }, [app.ready]);
 
   return (
     <>
@@ -50,6 +53,7 @@ function RootNavigator() {
         headerShadowVisible: false,
       }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="destination/pick" options={{ title: 'Choose a destination', headerShown: false }} />
         <Stack.Screen name="trip/setup" options={{ title: 'Choose your stops' }} />
         <Stack.Screen name="trip/active" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="bus/new" options={{ title: 'Create a bus route' }} />

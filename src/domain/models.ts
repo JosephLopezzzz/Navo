@@ -43,3 +43,43 @@ export interface EvaluationResult {
   distanceFromRouteM?: number;
   ignoredReason?: 'inactive' | 'unmapped-stop' | 'poor-accuracy';
 }
+
+export type DestinationKind = 'rail-station' | 'bus-dropoff' | 'place';
+export type DestinationSource = 'map-pin' | 'tomtom';
+export interface SavedDestination {
+  id: string;
+  name: string;
+  subtitle?: string;
+  latitude: number;
+  longitude: number;
+  kind: DestinationKind;
+  source: DestinationSource;
+  providerPlaceId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DestinationWatchState = 'off' | 'awaiting-exit' | 'monitoring' | 'alerted';
+export interface DestinationAlarm {
+  id: string;
+  destinationId: string;
+  enabled: boolean;
+  radiusM: number;
+  watchState: DestinationWatchState;
+  sessionId: string | null;
+  armedAt: number | null;
+  lastFixAt: number | null;
+  lastDistanceM: number | null;
+  consecutiveInsideFixes: number;
+  firedAt: number | null;
+  notificationIdentifier: string | null;
+  pendingEvent: DestinationAlarmEvent | null;
+}
+
+export interface DestinationAlarmEvent {
+  id: string;
+  alarmId: string;
+  destinationId: string;
+  sessionId: string;
+  message: string;
+}
