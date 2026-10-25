@@ -1,0 +1,602 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T20:00:00+08:00",
+  "title": "Design System: Navo",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Commuter Paper",
+        "tonalRamp": [
+          "oklch(15% 0.004 121.6)",
+          "oklch(25% 0.004 121.6)",
+          "oklch(35% 0.004 121.6)",
+          "oklch(45% 0.004 121.6)",
+          "oklch(55% 0.004 121.6)",
+          "oklch(65% 0.004 121.6)",
+          "oklch(80% 0.004 121.6)",
+          "oklch(95% 0.004 121.6)"
+        ]
+      },
+      "surface-white": {
+        "role": "neutral",
+        "displayName": "Surface White",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(55% 0.000 89.9)",
+          "oklch(65% 0.000 89.9)",
+          "oklch(80% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "raised-mist": {
+        "role": "neutral",
+        "displayName": "Raised Mist",
+        "tonalRamp": [
+          "oklch(15% 0.004 134.8)",
+          "oklch(25% 0.004 134.8)",
+          "oklch(35% 0.004 134.8)",
+          "oklch(45% 0.004 134.8)",
+          "oklch(55% 0.004 134.8)",
+          "oklch(65% 0.004 134.8)",
+          "oklch(80% 0.004 134.8)",
+          "oklch(95% 0.004 134.8)"
+        ]
+      },
+      "route-ink": {
+        "role": "neutral",
+        "displayName": "Route Ink",
+        "tonalRamp": [
+          "oklch(15% 0.015 181.4)",
+          "oklch(25% 0.015 181.4)",
+          "oklch(35% 0.015 181.4)",
+          "oklch(45% 0.015 181.4)",
+          "oklch(55% 0.015 181.4)",
+          "oklch(65% 0.015 181.4)",
+          "oklch(80% 0.015 181.4)",
+          "oklch(95% 0.015 181.4)"
+        ]
+      },
+      "muted-ink": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "tonalRamp": [
+          "oklch(15% 0.018 181.2)",
+          "oklch(25% 0.018 181.2)",
+          "oklch(35% 0.018 181.2)",
+          "oklch(45% 0.018 181.2)",
+          "oklch(55% 0.018 181.2)",
+          "oklch(65% 0.018 181.2)",
+          "oklch(80% 0.018 181.2)",
+          "oklch(95% 0.018 181.2)"
+        ]
+      },
+      "quiet-ink": {
+        "role": "neutral",
+        "displayName": "Quiet Ink",
+        "tonalRamp": [
+          "oklch(15% 0.018 182.3)",
+          "oklch(25% 0.018 182.3)",
+          "oklch(35% 0.018 182.3)",
+          "oklch(45% 0.018 182.3)",
+          "oklch(55% 0.018 182.3)",
+          "oklch(65% 0.018 182.3)",
+          "oklch(80% 0.018 182.3)",
+          "oklch(95% 0.018 182.3)"
+        ]
+      },
+      "registration-line": {
+        "role": "neutral",
+        "displayName": "Registration Line",
+        "tonalRamp": [
+          "oklch(15% 0.009 161.3)",
+          "oklch(25% 0.009 161.3)",
+          "oklch(35% 0.009 161.3)",
+          "oklch(45% 0.009 161.3)",
+          "oklch(55% 0.009 161.3)",
+          "oklch(65% 0.009 161.3)",
+          "oklch(80% 0.009 161.3)",
+          "oklch(95% 0.009 161.3)"
+        ]
+      },
+      "route-blue": {
+        "role": "primary",
+        "displayName": "Route Blue",
+        "tonalRamp": [
+          "oklch(15% 0.169 257.6)",
+          "oklch(25% 0.169 257.6)",
+          "oklch(35% 0.169 257.6)",
+          "oklch(45% 0.169 257.6)",
+          "oklch(55% 0.169 257.6)",
+          "oklch(65% 0.169 257.6)",
+          "oklch(80% 0.169 257.6)",
+          "oklch(95% 0.169 257.6)"
+        ]
+      },
+      "route-blue-wash": {
+        "role": "primary",
+        "displayName": "Route Blue Wash",
+        "tonalRamp": [
+          "oklch(15% 0.023 258.4)",
+          "oklch(25% 0.023 258.4)",
+          "oklch(35% 0.023 258.4)",
+          "oklch(45% 0.023 258.4)",
+          "oklch(55% 0.023 258.4)",
+          "oklch(65% 0.023 258.4)",
+          "oklch(80% 0.023 258.4)",
+          "oklch(95% 0.023 258.4)"
+        ]
+      },
+      "wayfinding-teal": {
+        "role": "secondary",
+        "displayName": "Wayfinding Teal",
+        "tonalRamp": [
+          "oklch(15% 0.092 185.0)",
+          "oklch(25% 0.092 185.0)",
+          "oklch(35% 0.092 185.0)",
+          "oklch(45% 0.092 185.0)",
+          "oklch(55% 0.092 185.0)",
+          "oklch(65% 0.092 185.0)",
+          "oklch(80% 0.092 185.0)",
+          "oklch(95% 0.092 185.0)"
+        ]
+      },
+      "success-green": {
+        "role": "semantic",
+        "displayName": "Success Green",
+        "tonalRamp": [
+          "oklch(15% 0.093 162.2)",
+          "oklch(25% 0.093 162.2)",
+          "oklch(35% 0.093 162.2)",
+          "oklch(45% 0.093 162.2)",
+          "oklch(55% 0.093 162.2)",
+          "oklch(65% 0.093 162.2)",
+          "oklch(80% 0.093 162.2)",
+          "oklch(95% 0.093 162.2)"
+        ]
+      },
+      "success-wash": {
+        "role": "semantic",
+        "displayName": "Success Wash",
+        "tonalRamp": [
+          "oklch(15% 0.016 160.6)",
+          "oklch(25% 0.016 160.6)",
+          "oklch(35% 0.016 160.6)",
+          "oklch(45% 0.016 160.6)",
+          "oklch(55% 0.016 160.6)",
+          "oklch(65% 0.016 160.6)",
+          "oklch(80% 0.016 160.6)",
+          "oklch(95% 0.016 160.6)"
+        ]
+      },
+      "alert-amber": {
+        "role": "semantic",
+        "displayName": "Alert Amber",
+        "tonalRamp": [
+          "oklch(15% 0.102 72.5)",
+          "oklch(25% 0.102 72.5)",
+          "oklch(35% 0.102 72.5)",
+          "oklch(45% 0.102 72.5)",
+          "oklch(55% 0.102 72.5)",
+          "oklch(65% 0.102 72.5)",
+          "oklch(80% 0.102 72.5)",
+          "oklch(95% 0.102 72.5)"
+        ]
+      },
+      "alert-amber-wash": {
+        "role": "semantic",
+        "displayName": "Alert Amber Wash",
+        "tonalRamp": [
+          "oklch(15% 0.036 86.2)",
+          "oklch(25% 0.036 86.2)",
+          "oklch(35% 0.036 86.2)",
+          "oklch(45% 0.036 86.2)",
+          "oklch(55% 0.036 86.2)",
+          "oklch(65% 0.036 86.2)",
+          "oklch(80% 0.036 86.2)",
+          "oklch(95% 0.036 86.2)"
+        ]
+      },
+      "alert-red": {
+        "role": "semantic",
+        "displayName": "Alert Red",
+        "tonalRamp": [
+          "oklch(15% 0.151 20.9)",
+          "oklch(25% 0.151 20.9)",
+          "oklch(35% 0.151 20.9)",
+          "oklch(45% 0.151 20.9)",
+          "oklch(55% 0.151 20.9)",
+          "oklch(65% 0.151 20.9)",
+          "oklch(80% 0.151 20.9)",
+          "oklch(95% 0.151 20.9)"
+        ]
+      },
+      "alert-red-wash": {
+        "role": "semantic",
+        "displayName": "Alert Red Wash",
+        "tonalRamp": [
+          "oklch(15% 0.019 9.3)",
+          "oklch(25% 0.019 9.3)",
+          "oklch(35% 0.019 9.3)",
+          "oklch(45% 0.019 9.3)",
+          "oklch(55% 0.019 9.3)",
+          "oklch(65% 0.019 9.3)",
+          "oklch(80% 0.019 9.3)",
+          "oklch(95% 0.019 9.3)"
+        ]
+      },
+      "ink-on-blue": {
+        "role": "neutral",
+        "displayName": "Ink on Blue",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(55% 0.000 89.9)",
+          "oklch(65% 0.000 89.9)",
+          "oklch(80% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "night-paper": {
+        "role": "neutral",
+        "displayName": "Night Paper",
+        "tonalRamp": [
+          "oklch(15% 0.010 173.0)",
+          "oklch(25% 0.010 173.0)",
+          "oklch(35% 0.010 173.0)",
+          "oklch(45% 0.010 173.0)",
+          "oklch(55% 0.010 173.0)",
+          "oklch(65% 0.010 173.0)",
+          "oklch(80% 0.010 173.0)",
+          "oklch(95% 0.010 173.0)"
+        ]
+      },
+      "night-surface": {
+        "role": "neutral",
+        "displayName": "Night Surface",
+        "tonalRamp": [
+          "oklch(15% 0.011 176.2)",
+          "oklch(25% 0.011 176.2)",
+          "oklch(35% 0.011 176.2)",
+          "oklch(45% 0.011 176.2)",
+          "oklch(55% 0.011 176.2)",
+          "oklch(65% 0.011 176.2)",
+          "oklch(80% 0.011 176.2)",
+          "oklch(95% 0.011 176.2)"
+        ]
+      },
+      "night-raised": {
+        "role": "neutral",
+        "displayName": "Night Raised",
+        "tonalRamp": [
+          "oklch(15% 0.014 173.2)",
+          "oklch(25% 0.014 173.2)",
+          "oklch(35% 0.014 173.2)",
+          "oklch(45% 0.014 173.2)",
+          "oklch(55% 0.014 173.2)",
+          "oklch(65% 0.014 173.2)",
+          "oklch(80% 0.014 173.2)",
+          "oklch(95% 0.014 173.2)"
+        ]
+      },
+      "night-ink": {
+        "role": "neutral",
+        "displayName": "Night Ink",
+        "tonalRamp": [
+          "oklch(15% 0.006 153.8)",
+          "oklch(25% 0.006 153.8)",
+          "oklch(35% 0.006 153.8)",
+          "oklch(45% 0.006 153.8)",
+          "oklch(55% 0.006 153.8)",
+          "oklch(65% 0.006 153.8)",
+          "oklch(80% 0.006 153.8)",
+          "oklch(95% 0.006 153.8)"
+        ]
+      },
+      "night-muted": {
+        "role": "neutral",
+        "displayName": "Night Muted",
+        "tonalRamp": [
+          "oklch(15% 0.013 164.8)",
+          "oklch(25% 0.013 164.8)",
+          "oklch(35% 0.013 164.8)",
+          "oklch(45% 0.013 164.8)",
+          "oklch(55% 0.013 164.8)",
+          "oklch(65% 0.013 164.8)",
+          "oklch(80% 0.013 164.8)",
+          "oklch(95% 0.013 164.8)"
+        ]
+      },
+      "night-quiet": {
+        "role": "neutral",
+        "displayName": "Night Quiet",
+        "tonalRamp": [
+          "oklch(15% 0.018 168.3)",
+          "oklch(25% 0.018 168.3)",
+          "oklch(35% 0.018 168.3)",
+          "oklch(45% 0.018 168.3)",
+          "oklch(55% 0.018 168.3)",
+          "oklch(65% 0.018 168.3)",
+          "oklch(80% 0.018 168.3)",
+          "oklch(95% 0.018 168.3)"
+        ]
+      },
+      "night-line": {
+        "role": "neutral",
+        "displayName": "Night Line",
+        "tonalRamp": [
+          "oklch(15% 0.020 171.4)",
+          "oklch(25% 0.020 171.4)",
+          "oklch(35% 0.020 171.4)",
+          "oklch(45% 0.020 171.4)",
+          "oklch(55% 0.020 171.4)",
+          "oklch(65% 0.020 171.4)",
+          "oklch(80% 0.020 171.4)",
+          "oklch(95% 0.020 171.4)"
+        ]
+      },
+      "night-route-blue": {
+        "role": "primary",
+        "displayName": "Night Route Blue",
+        "tonalRamp": [
+          "oklch(15% 0.116 257.9)",
+          "oklch(25% 0.116 257.9)",
+          "oklch(35% 0.116 257.9)",
+          "oklch(45% 0.116 257.9)",
+          "oklch(55% 0.116 257.9)",
+          "oklch(65% 0.116 257.9)",
+          "oklch(80% 0.116 257.9)",
+          "oklch(95% 0.116 257.9)"
+        ]
+      },
+      "night-route-blue-wash": {
+        "role": "primary",
+        "displayName": "Night Route Blue Wash",
+        "tonalRamp": [
+          "oklch(15% 0.050 254.8)",
+          "oklch(25% 0.050 254.8)",
+          "oklch(35% 0.050 254.8)",
+          "oklch(45% 0.050 254.8)",
+          "oklch(55% 0.050 254.8)",
+          "oklch(65% 0.050 254.8)",
+          "oklch(80% 0.050 254.8)",
+          "oklch(95% 0.050 254.8)"
+        ]
+      },
+      "night-wayfinding-teal": {
+        "role": "secondary",
+        "displayName": "Night Wayfinding Teal",
+        "tonalRamp": [
+          "oklch(15% 0.098 180.5)",
+          "oklch(25% 0.098 180.5)",
+          "oklch(35% 0.098 180.5)",
+          "oklch(45% 0.098 180.5)",
+          "oklch(55% 0.098 180.5)",
+          "oklch(65% 0.098 180.5)",
+          "oklch(80% 0.098 180.5)",
+          "oklch(95% 0.098 180.5)"
+        ]
+      },
+      "night-success": {
+        "role": "semantic",
+        "displayName": "Night Success",
+        "tonalRamp": [
+          "oklch(15% 0.068 156.5)",
+          "oklch(25% 0.068 156.5)",
+          "oklch(35% 0.068 156.5)",
+          "oklch(45% 0.068 156.5)",
+          "oklch(55% 0.068 156.5)",
+          "oklch(65% 0.068 156.5)",
+          "oklch(80% 0.068 156.5)",
+          "oklch(95% 0.068 156.5)"
+        ]
+      },
+      "night-success-wash": {
+        "role": "semantic",
+        "displayName": "Night Success Wash",
+        "tonalRamp": [
+          "oklch(15% 0.039 160.1)",
+          "oklch(25% 0.039 160.1)",
+          "oklch(35% 0.039 160.1)",
+          "oklch(45% 0.039 160.1)",
+          "oklch(55% 0.039 160.1)",
+          "oklch(65% 0.039 160.1)",
+          "oklch(80% 0.039 160.1)",
+          "oklch(95% 0.039 160.1)"
+        ]
+      },
+      "night-alert-amber": {
+        "role": "semantic",
+        "displayName": "Night Alert Amber",
+        "tonalRamp": [
+          "oklch(15% 0.110 82.5)",
+          "oklch(25% 0.110 82.5)",
+          "oklch(35% 0.110 82.5)",
+          "oklch(45% 0.110 82.5)",
+          "oklch(55% 0.110 82.5)",
+          "oklch(65% 0.110 82.5)",
+          "oklch(80% 0.110 82.5)",
+          "oklch(95% 0.110 82.5)"
+        ]
+      },
+      "night-alert-amber-wash": {
+        "role": "semantic",
+        "displayName": "Night Alert Amber Wash",
+        "tonalRamp": [
+          "oklch(15% 0.034 82.8)",
+          "oklch(25% 0.034 82.8)",
+          "oklch(35% 0.034 82.8)",
+          "oklch(45% 0.034 82.8)",
+          "oklch(55% 0.034 82.8)",
+          "oklch(65% 0.034 82.8)",
+          "oklch(80% 0.034 82.8)",
+          "oklch(95% 0.034 82.8)"
+        ]
+      },
+      "night-alert-red": {
+        "role": "semantic",
+        "displayName": "Night Alert Red",
+        "tonalRamp": [
+          "oklch(15% 0.088 13.8)",
+          "oklch(25% 0.088 13.8)",
+          "oklch(35% 0.088 13.8)",
+          "oklch(45% 0.088 13.8)",
+          "oklch(55% 0.088 13.8)",
+          "oklch(65% 0.088 13.8)",
+          "oklch(80% 0.088 13.8)",
+          "oklch(95% 0.088 13.8)"
+        ]
+      },
+      "night-alert-red-wash": {
+        "role": "semantic",
+        "displayName": "Night Alert Red Wash",
+        "tonalRamp": [
+          "oklch(15% 0.037 11.4)",
+          "oklch(25% 0.037 11.4)",
+          "oklch(35% 0.037 11.4)",
+          "oklch(45% 0.037 11.4)",
+          "oklch(55% 0.037 11.4)",
+          "oklch(65% 0.037 11.4)",
+          "oklch(80% 0.037 11.4)",
+          "oklch(95% 0.037 11.4)"
+        ]
+      },
+      "night-ink-on-blue": {
+        "role": "neutral",
+        "displayName": "Night Ink on Blue",
+        "tonalRamp": [
+          "oklch(15% 0.053 258.0)",
+          "oklch(25% 0.053 258.0)",
+          "oklch(35% 0.053 258.0)",
+          "oklch(45% 0.053 258.0)",
+          "oklch(55% 0.053 258.0)",
+          "oklch(65% 0.053 258.0)",
+          "oklch(80% 0.053 258.0)",
+          "oklch(95% 0.053 258.0)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Screen headline",
+        "purpose": "Screen title and destination."
+      },
+      "section": {
+        "displayName": "Section title",
+        "purpose": "Route and stop groups."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Primary instructions and trip context."
+      },
+      "supporting": {
+        "displayName": "Supporting",
+        "purpose": "Reliability and secondary information."
+      },
+      "label": {
+        "displayName": "Route label",
+        "purpose": "Stop order, source quality, compact status."
+      },
+      "button": {
+        "displayName": "Button",
+        "purpose": "Action labels."
+      }
+    },
+    "shadows": [],
+    "motion": [],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single main action on a screen.",
+      "html": "<button class=\"ds-button-primary\">Start destination alarm</button>",
+      "css": ".ds-button-primary{background:#246DD0;color:#FFFFFF;border:0;border-radius:14px;min-height:54px;padding:0 24px;font:700 16px system-ui,sans-serif;transition:opacity .15s ease}.ds-button-primary:hover{opacity:.9}.ds-button-primary:focus-visible{outline:3px solid #087D73;outline-offset:3px}.ds-button-primary:active{opacity:.78}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A reversible alternative action.",
+      "html": "<button class=\"ds-button-secondary\">End trip</button>",
+      "css": ".ds-button-secondary{background:transparent;color:#17211F;border:1px solid #D9E0DC;border-radius:14px;min-height:50px;padding:0 24px;font:700 16px system-ui,sans-serif;transition:opacity .15s ease}.ds-button-secondary:hover{background:#F0F2EF}.ds-button-secondary:focus-visible{outline:3px solid #246DD0;outline-offset:3px}.ds-button-secondary:active{opacity:.72}"
+    },
+    {
+      "name": "Bus Route Field",
+      "kind": "input",
+      "refersTo": "text-field",
+      "description": "A native-style route name field with a quiet underline.",
+      "html": "<label class=\"ds-field-label\" for=\"route-name\">Route name</label><input id=\"route-name\" class=\"ds-route-field\" value=\"EDSA Carousel\" />",
+      "css": ".ds-field-label{display:block;color:#53615E;font:700 11px system-ui,sans-serif;letter-spacing:.7px;text-transform:uppercase}.ds-route-field{box-sizing:border-box;width:100%;min-height:48px;padding:0 2px;color:#17211F;background:transparent;border:0;border-bottom:1px solid #D9E0DC;border-radius:0;font:400 16px system-ui,sans-serif}.ds-route-field:focus-visible{outline:2px solid #246DD0;outline-offset:2px}"
+    },
+    {
+      "name": "Data Seal",
+      "kind": "chip",
+      "refersTo": "data-seal",
+      "description": "Compact source or reliability status.",
+      "html": "<span class=\"ds-data-seal\"><span class=\"ds-seal-dot\"></span>Station order only</span>",
+      "css": ".ds-data-seal{display:inline-flex;align-items:center;gap:7px;min-height:28px;padding:0 9px;color:#53615E;background:#F0F2EF;border:1px solid #53615E;border-radius:7px;font:700 11px system-ui,sans-serif;letter-spacing:.45px;text-transform:uppercase}.ds-seal-dot{width:6px;height:6px;flex:0 0 6px;background:#53615E;border-radius:50%}"
+    },
+    {
+      "name": "Route Progress",
+      "kind": "custom",
+      "refersTo": "route-line",
+      "description": "One connected route with a distinct passed, next, and destination state.",
+      "html": "<div class=\"ds-route-progress\"><span class=\"ds-stop ds-passed\">1</span><span class=\"ds-route-segment\"></span><span class=\"ds-stop ds-next\">2</span><span class=\"ds-route-segment\"></span><span class=\"ds-stop ds-destination\">3</span></div>",
+      "css": ".ds-route-progress{display:flex;align-items:center;width:100%;min-height:24px}.ds-stop{display:grid;place-items:center;width:22px;height:22px;border:2px solid #71807D;border-radius:50%;font:700 10px system-ui,sans-serif}.ds-passed,.ds-next{color:#FFFFFF;background:#246DD0;border-color:#246DD0}.ds-destination{color:#17211F;background:#FFFFFF;border-color:#246DD0}.ds-route-segment{height:2px;flex:1;background:#D9E0DC}.ds-passed+.ds-route-segment{background:#246DD0}"
+    },
+    {
+      "name": "Numbered Stop Row",
+      "kind": "custom",
+      "refersTo": "route-line",
+      "description": "An ordered stop label paired with a compact sequence number.",
+      "html": "<div class=\"ds-stop-row\"><span class=\"ds-stop-number\">03</span><span class=\"ds-stop-name\">Abad Santos</span><span class=\"ds-stop-state\">NEXT</span></div>",
+      "css": ".ds-stop-row{display:flex;align-items:center;gap:12px;min-height:42px;padding:0 8px;border-bottom:1px solid #D9E0DC;color:#17211F;font:400 15px system-ui,sans-serif}.ds-stop-number{width:28px;color:#53615E;font:700 12px system-ui,sans-serif;font-variant-numeric:tabular-nums}.ds-stop-name{flex:1}.ds-stop-state{color:#246DD0;font:700 10px system-ui,sans-serif;letter-spacing:.5px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Route Plate",
+    "overview": "Navo treats each trip as a small printed wayfinding plate: a near-white field, one clear route line, numbered stops, fine separators, and a compact source-quality seal. The mark\u2019s blue-to-teal gradient lives in the editable SVG; the interface uses route blue for the rider\u2019s active choice and teal as a restrained supporting brand color.\n\nThe native interface keeps familiar tabs, switches, safe areas, and platform type. Setup stays calm and legible; an active trip brings the destination and next stop forward. The system shows what it knows about a route and leaves the rider a manual way to advance.",
+    "keyCharacteristics": [
+      "Paper-like light surfaces with a complete system-driven dark palette.",
+      "One blue route signal, connected numbered stops, and fine registration lines.",
+      "Calm setup, clear active progress, and visible data-quality seals."
+    ],
+    "rules": [
+      {
+        "name": "The Accent Discipline Rule",
+        "body": "Route blue marks the current action or progress. Teal supports route authorship and confirmation; it does not replace warning or error colors.",
+        "section": "colors"
+      },
+      {
+        "name": "The Signal First Rule",
+        "body": "Put the destination, next stop, and trip action ahead of source and reliability detail. Keep reliability visible without giving it headline weight.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Plate Rule",
+        "body": "Separate route information with space, tone, and hairline dividers instead of floating-card shadows.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do show whether route coordinates are rider-saved, missing, or unavailable before starting location-based alerts.",
+      "Do keep a manual confirmation action available when the app cannot use location.",
+      "Do show the source and sequence without implying an ETA or live service feed.",
+      "Do use native navigation and controls while carrying the route-plate language through the content."
+    ],
+    "donts": [
+      "Don't show unverified station coordinates as operational route data.",
+      "Don't present straight-line route checks as precise bus navigation.",
+      "Don't imply Navo overrides Focus, silent mode, battery limits, or operating-system background restrictions.",
+      "Don't add geographic map decoration until route coordinates have been checked."
+    ]
+  }
+}
