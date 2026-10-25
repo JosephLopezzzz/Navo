@@ -72,8 +72,8 @@ Background location requires platform permissions and may stop when the operatin
 
 ## Branding
 
-- Editable icon source: assets/navo-mark.svg
-- Editable transparent mark: assets/navo-monogram.svg
+- Editable transparent color mark: assets/navo-mark.svg
+- Editable monochrome mark for Android and notifications: assets/navo-monogram.svg
 - Generated mobile and Android adaptive icons: assets/icon.png, assets/android-icon-*.png, and assets/notification-icon.png
 - Regenerate raster platform assets with npm run assets:icons
 - Product and visual direction: PRODUCT.md, scopes/route-companion.md, and DESIGN.md

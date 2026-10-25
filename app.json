@@ -20,7 +20,7 @@
       "package": "com.josephlopezzzz.navo",
       "predictiveBackGestureEnabled": true,
       "adaptiveIcon": {
-        "backgroundColor": "#2478E6",
+        "backgroundColor": "#062349",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

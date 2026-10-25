@@ -32,7 +32,7 @@ The requested scope includes train station sequencing for LRT-1, LRT-2, and MRT-
 
 ## Brand Commitments
 
-The name is Navo. The approved icon is a rounded blue-to-teal gradient tile with a stylized capital N, a sweeping white route path, and a location pin above the right stroke. The icon has no wordmark. The first screens should feel like a quiet rider companion: calm setup and readable, prominent trip status.
+The name is Navo. The approved mark is the supplied transparent Gradient Navigation N artwork: a sculpted blue-to-teal capital N, a sweeping white route, and a gradient location pin above the right-hand stroke. The mark has no wordmark. Keep the editable source transparent; use a deep navy backplate for the app and launcher icon variants so the white route remains legible. The first screens should feel like a quiet rider companion: calm setup and readable, prominent trip status.
 
 ## Evidence on Hand
 
