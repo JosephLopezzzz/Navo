@@ -5,8 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { DataSeal, Divider, PrimaryButton, RouteLine, Screen, ScreenTitle, SecondaryButton, Subtle } from '../../components/ui';
 import { distanceBetweenMeters, manuallyConfirmNextStop } from '../../domain/trip-engine';
-import { endBackgroundLocation } from '../../services/background-location';
-import { readAppState, writeAppState } from '../../services/storage';
+import { stopBackgroundLocationIfIdle } from '../../services/background-location';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
 
@@ -46,14 +45,17 @@ export default function ActiveTripScreen() {
   const passed = trip.lastConfirmedIndex;
 
   const confirmNext = async () => {
-    const result = manuallyConfirmNextStop(route, trip);
-    const stored = await readAppState();
-    const nextState = { ...stored, activeTrip: result.trip };
-    await writeAppState(nextState);
-    app.updateState(nextState);
+    const outcome: { result: ReturnType<typeof manuallyConfirmNextStop> | null } = { result: null };
+    await app.mutateState((current) => {
+      if (!current.activeTrip || current.activeTrip.id !== trip.id || !current.activeRoute) return current;
+      outcome.result = manuallyConfirmNextStop(current.activeRoute, current.activeTrip);
+      return { ...current, activeTrip: outcome.result.trip };
+    });
+    const result = outcome.result;
+    if (!result) return;
     const event = result.events[0];
     if (result.trip.status === 'completed') {
-      await endBackgroundLocation();
+      await stopBackgroundLocationIfIdle();
       if (event) {
         const permission = await Notifications.getPermissionsAsync();
         if (permission.granted) {
@@ -64,11 +66,8 @@ export default function ActiveTripScreen() {
   };
 
   const clearTrip = async () => {
-    await endBackgroundLocation();
-    const stored = await readAppState();
-    const nextState = { ...stored, activeTrip: null, activeRoute: null, locationProblem: null, lastTripNotice: null };
-    await writeAppState(nextState);
-    app.updateState(nextState);
+    await app.mutateState((current) => ({ ...current, activeTrip: null, activeRoute: null, locationProblem: null, lastTripNotice: null }));
+    await stopBackgroundLocationIfIdle();
     router.replace('/');
   };
 

@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
-import { defaultSettings, readAppState, writeAppState, type StoredAppState } from '../services/storage';
+import { AppState } from 'react-native';
+import { defaultSettings, readAppState, updateAppState, type StoredAppState } from '../services/storage';
 
 interface AppStateContextValue extends StoredAppState {
   ready: boolean;
   storageProblem: string | null;
-  updateState: (patch: Partial<StoredAppState>) => void;
+  updateState: (patch: Partial<StoredAppState>) => Promise<void>;
+  mutateState: (mutate: (current: StoredAppState) => StoredAppState) => Promise<StoredAppState>;
   refreshState: () => Promise<void>;
 }
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -23,6 +25,27 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  const mutateState = useCallback(async (mutate: (current: StoredAppState) => StoredAppState) => {
+    try {
+      await updateAppState(mutate);
+      const latest = await readAppState();
+      setState(latest);
+      setStorageProblem(null);
+      return latest;
+    } catch (error) {
+      setStorageProblem(STORAGE_PROBLEM);
+      throw error;
+    }
+  }, []);
+
+  const updateState = useCallback(async (patch: Partial<StoredAppState>) => {
+    await mutateState((current) => ({
+      ...current,
+      ...patch,
+      settings: patch.settings ? { ...current.settings, ...patch.settings } : current.settings,
+    }));
+  }, [mutateState]);
+
   useEffect(() => {
     let mounted = true;
     void readAppState().then((saved) => {
@@ -36,18 +59,30 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     return () => { mounted = false; };
   }, []);
 
-  const updateState = useCallback((patch: Partial<StoredAppState>) => {
-    setState((previous) => {
-      const updated = { ...(previous ?? {}), ...patch } as StoredAppState;
-      void writeAppState(updated);
-      return updated;
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') void refreshState();
     });
-  }, []);
+    return () => subscription.remove();
+  }, [refreshState]);
+
+  const hasActiveLocationWork = Boolean(state?.activeTrip?.status === 'active'
+    || state?.destinationAlarms.some((alarm) => alarm.enabled));
+  useEffect(() => {
+    if (!hasActiveLocationWork) return;
+    const interval = setInterval(() => {
+      if (AppState.currentState === 'active') void refreshState();
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [hasActiveLocationWork, refreshState]);
 
   const value = useMemo<AppStateContextValue>(() => ({
+    schemaVersion: 2,
     activeTrip: state?.activeTrip ?? null,
     activeRoute: state?.activeRoute ?? null,
     customBusRoutes: state?.customBusRoutes ?? [],
+    destinations: state?.destinations ?? [],
+    destinationAlarms: state?.destinationAlarms ?? [],
     settings: state?.settings ?? defaultSettings,
     lastLocationAt: state?.lastLocationAt ?? null,
     lastLocation: state?.lastLocation ?? null,
@@ -57,8 +92,9 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     ready: state !== null,
     storageProblem,
     updateState,
+    mutateState,
     refreshState,
-  }), [state, storageProblem, updateState, refreshState]);
+  }), [state, storageProblem, updateState, mutateState, refreshState]);
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 }
 

@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a reproducible problem in Navo
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: Share only non-personal details. Do not include API keys, exact coordinates, or private trip history.
+  - type: input
+    id: app-version
+    attributes:
+      label: App version or commit
+      placeholder: "For example, 0.1.0 or a short commit SHA"
+    validations:
+      required: false
+  - type: input
+    id: platform
+    attributes:
+      label: Platform and device
+      placeholder: "Android or iOS, OS version, and device model"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Use a broad test area and avoid personal addresses or coordinates.
+      placeholder: "1. Open…\n2. Choose…\n3. Observe…"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Relevant permissions or settings
+      description: Include whether location and notifications were allowed, and whether the app was open or in the background.
+    validations:
+      required: false

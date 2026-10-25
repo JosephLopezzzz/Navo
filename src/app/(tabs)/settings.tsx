@@ -56,7 +56,7 @@ export default function SettingsScreen() {
   return (
     <Screen>
       <ScreenTitle>Settings</ScreenTitle>
-      <Subtle>Trip alerts use location only while a trip is active. Sleep mode limits alerts to your destination.</Subtle>
+      <Subtle>Location runs only while a destination alarm or route trip is active. Sleep mode limits route alerts to your destination.</Subtle>
 
       {app.storageProblem && (
         <View style={styles.settingBlock}>

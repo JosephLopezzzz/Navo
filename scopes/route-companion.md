@@ -8,11 +8,11 @@ A quiet commuter route guide treated like an editorial route plate. Arctic Pearl
 
 ## First viewport
 
-The home screen asks where the rider is heading. It places rail lines as open route strips with endpoint and station counts, then offers a separate bus-route action. Setup shows the ordered stops between boarding and destination before the rider arms anything. The active trip puts the destination and current/next stop first, with a clear sequence line and a visible data-quality seal. It does not invent an ETA.
+The home screen leads with saved destination alarms. Each row shows the stop, alarm state, distance/radius when available, and a direct on/off control. Adding a destination offers search and map pinning; both resolve to one saved coordinate. Route sequences remain available as a secondary flow. The active trip puts the destination and current/next stop first, with a clear sequence line and a visible data-quality seal. It does not invent an ETA.
 
 ## Visitor path
 
-Choose LRT-1, LRT-2, MRT-3, or make a bus route; select boarding and destination stops; choose every-stop or destination-only wake mode; review location, permission, and route-data readiness; start; track the next stop; confirm manually if location is unavailable; end or complete the trip.
+Save a rail station, bus drop-off, or place by searching or pinning it; set its wake radius; switch its alarm on before a ride; grant location and notification permissions; let Navo track the phone automatically; turn the alarm off or reuse the saved destination. The separate route flow supports LRT-1, LRT-2, MRT-3, and rider-authored bus sequences with manual progress when route coordinates are unavailable.
 
 ## Signature interaction
 

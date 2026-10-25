@@ -1,0 +1,23 @@
+name: Documentation improvement
+description: Report unclear or missing project documentation
+title: "[Docs]: "
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Page or section
+      placeholder: "For example, README.md - Run locally"
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is unclear or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested correction
+    validations:
+      required: false
