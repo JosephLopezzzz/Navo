@@ -1,16 +1,28 @@
-import { useColorScheme } from 'react-native';
+import { useAppState } from '../state/AppStateProvider';
+
+export const brand = {
+  midnight: '#07182F',
+  ocean: '#0D294B',
+  sapphire: '#0869A8',
+  aqua: '#00D3C5',
+  cloud: '#F7FAFF',
+} as const;
+
+export const navoGradient = ['#0B3B88', '#0869A8', '#00D3C5'] as const;
 
 const light = {
-  background: '#F6F7F4',
+  ...brand,
+  isDark: false,
+  background: '#F7FAFF',
   surface: '#FFFFFF',
-  raised: '#F0F2EF',
-  ink: '#17211F',
-  muted: '#53615E',
-  quiet: '#71807D',
-  line: '#D9E0DC',
-  accent: '#246DD0',
-  accentSoft: '#E6F0FF',
-  teal: '#087D73',
+  raised: '#EDF3F9',
+  ink: '#07182F',
+  muted: '#41546C',
+  quiet: '#566D86',
+  line: '#D7E2ED',
+  accent: brand.sapphire,
+  accentSoft: '#E2F0F9',
+  teal: '#007B78',
   success: '#176A4A',
   successSoft: '#E8F4ED',
   warning: '#87590E',
@@ -21,28 +33,32 @@ const light = {
 };
 
 const dark = {
-  background: '#111715',
-  surface: '#1B2220',
-  raised: '#252E2B',
-  ink: '#F1F5F2',
-  muted: '#CCD6D1',
-  quiet: '#A8B6B0',
-  line: '#34423D',
-  accent: '#86B7FF',
-  accentSoft: '#1D3048',
-  teal: '#6FD3C1',
-  success: '#A7D9B9',
-  successSoft: '#1C3528',
-  warning: '#F1C777',
-  warningSoft: '#392F1C',
-  danger: '#FFB4BA',
-  dangerSoft: '#3D2528',
-  onAccent: '#10213A',
+  ...brand,
+  isDark: true,
+  background: '#050C17',
+  surface: '#0A1626',
+  raised: '#0D294B',
+  ink: '#F7FAFF',
+  muted: '#C1D0E0',
+  quiet: '#9BAFC4',
+  line: '#263B54',
+  accent: '#3F9ED4',
+  accentSoft: '#102E49',
+  teal: '#00D3C5',
+  success: '#8BD8AB',
+  successSoft: '#132D29',
+  warning: '#F6CE7C',
+  warningSoft: '#352A18',
+  danger: '#FFB3B8',
+  dangerSoft: '#3B2028',
+  onAccent: '#07182F',
 };
 
-export type NavoColors = typeof light;
+export type NavoColors = Record<Exclude<keyof typeof light, 'isDark'>, string> & { isDark: boolean };
+
 export function useNavoColors(): NavoColors {
-  return useColorScheme() === 'dark' ? dark : light;
+  const { settings } = useAppState();
+  return settings.appearance === 'dark' ? dark : light;
 }
 
 export const spacing = { xs: 6, sm: 10, md: 16, lg: 24, xl: 32, xxl: 44 } as const;

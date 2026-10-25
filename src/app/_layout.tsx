@@ -1,9 +1,14 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { AppStateProvider } from '../state/AppStateProvider';
+import { Appearance } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import { AppStateProvider, useAppState } from '../state/AppStateProvider';
 import { useNavoColors } from '../theme/colors';
 import '../services/background-location';
 import * as Notifications from 'expo-notifications';
+
+void SplashScreen.preventAutoHideAsync();
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -15,10 +20,28 @@ Notifications.setNotificationHandler({
 });
 
 export default function RootLayout() {
-  const colors = useNavoColors();
   return (
     <AppStateProvider>
-      <StatusBar style="auto" />
+      <RootNavigator />
+    </AppStateProvider>
+  );
+}
+
+function RootNavigator() {
+  const app = useAppState();
+  const colors = useNavoColors();
+  const isLoadingAppearance = !app.ready && !app.storageProblem;
+  useEffect(() => {
+    if (!app.ready && !app.storageProblem) return;
+    Appearance.setColorScheme(colors.isDark ? 'dark' : 'light');
+  }, [app.ready, app.storageProblem, colors.isDark]);
+  useEffect(() => {
+    if (app.ready || app.storageProblem) void SplashScreen.hideAsync();
+  }, [app.ready, app.storageProblem]);
+
+  return (
+    <>
+      <StatusBar style={isLoadingAppearance || colors.isDark ? 'light' : 'dark'} animated />
       <Stack screenOptions={{
         contentStyle: { backgroundColor: colors.background },
         headerStyle: { backgroundColor: colors.background },
@@ -31,6 +54,6 @@ export default function RootLayout() {
         <Stack.Screen name="trip/active" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="bus/new" options={{ title: 'Create a bus route' }} />
       </Stack>
-    </AppStateProvider>
+    </>
   );
 }

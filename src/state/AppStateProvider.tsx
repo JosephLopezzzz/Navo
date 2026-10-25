@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
-import { readAppState, writeAppState, type StoredAppState } from '../services/storage';
+import { defaultSettings, readAppState, writeAppState, type StoredAppState } from '../services/storage';
 
 interface AppStateContextValue extends StoredAppState {
   ready: boolean;
@@ -48,7 +48,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     activeTrip: state?.activeTrip ?? null,
     activeRoute: state?.activeRoute ?? null,
     customBusRoutes: state?.customBusRoutes ?? [],
-    settings: state?.settings ?? { approachRadiusM: 500, updateDistanceM: 75, updateIntervalMs: 20_000, sleepMode: true },
+    settings: state?.settings ?? defaultSettings,
     lastLocationAt: state?.lastLocationAt ?? null,
     lastLocation: state?.lastLocation ?? null,
     lastLocationAccuracyM: state?.lastLocationAccuracyM ?? null,

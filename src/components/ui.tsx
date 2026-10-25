@@ -1,7 +1,8 @@
 import type { PropsWithChildren, ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavoColors, spacing } from '../theme/colors';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { navoGradient, useNavoColors, spacing } from '../theme/colors';
 
 export function Screen({ children, scroll = true }: PropsWithChildren<{ scroll?: boolean }>) {
   const colors = useNavoColors();
@@ -90,13 +91,26 @@ export function Divider() {
   return <View style={[styles.divider, { backgroundColor: colors.line }]} />;
 }
 
-export function RouteLine({ passed = 0, total, destinationLabel }: { passed?: number; total: number; destinationLabel?: string }) {
+export function RouteLine({ passed = 0, total, destinationLabel, signatureGradient = false }: { passed?: number; total: number; destinationLabel?: string; signatureGradient?: boolean }) {
   const colors = useNavoColors();
   const count = Math.max(total - 1, 1);
   return (
     <View accessible accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: count, now: Math.min(passed, count) }} accessibilityLabel={destinationLabel ? `Route progress to ${destinationLabel}` : 'Route progress'} style={styles.routeLineWrap}>
-      <View style={styles.routeTrack}>
-        <View style={[styles.routeFill, { width: `${Math.max(0, Math.min(100, (passed / count) * 100))}%`, backgroundColor: colors.accent }]} />
+      <View style={[styles.routeTrack, { backgroundColor: colors.line }]}>
+        <View style={[styles.routeFill, { width: `${Math.max(0, Math.min(100, (passed / count) * 100))}%`, backgroundColor: colors.accent }]}>
+          {signatureGradient && (
+            <Svg width="100%" height={3} viewBox="0 0 100 3" preserveAspectRatio="none">
+              <Defs>
+                <LinearGradient id="navoRouteProgress" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="100" y2="26.8">
+                  <Stop offset="0%" stopColor={navoGradient[0]} />
+                  <Stop offset="48%" stopColor={navoGradient[1]} />
+                  <Stop offset="100%" stopColor={navoGradient[2]} />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height={3} fill="url(#navoRouteProgress)" />
+            </Svg>
+          )}
+        </View>
         {Array.from({ length: total }, (_, index) => (
           <View key={index} style={[styles.routeDot, { left: `${(index / count) * 100}%`, backgroundColor: index <= passed ? colors.accent : colors.surface, borderColor: index <= passed ? colors.accent : colors.quiet }]} />
         ))}
@@ -122,7 +136,7 @@ const styles = StyleSheet.create({
   sealText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.45, textTransform: 'uppercase' },
   divider: { height: StyleSheet.hairlineWidth, width: '100%' },
   routeLineWrap: { paddingVertical: 9, paddingHorizontal: 4 },
-  routeTrack: { height: 3, backgroundColor: '#A8B7B2', position: 'relative', justifyContent: 'center' },
+  routeTrack: { height: 3, position: 'relative', justifyContent: 'center' },
   routeFill: { height: 3, position: 'absolute', left: 0, top: 0 },
   routeDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 2, position: 'absolute', marginLeft: -5, top: -3.5 },
 });

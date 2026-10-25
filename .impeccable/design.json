@@ -1,484 +1,156 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-25T20:00:00+08:00",
+  "generatedAt": "2026-10-26T12:00:00+08:00",
   "title": "Design System: Navo",
   "extensions": {
     "colorMeta": {
-      "paper": {
+      "brand-midnight": {
+        "role": "brand",
+        "displayName": "Brand Midnight"
+      },
+      "brand-ocean": {
+        "role": "brand",
+        "displayName": "Brand Ocean"
+      },
+      "brand-sapphire": {
+        "role": "primary",
+        "displayName": "Brand Sapphire"
+      },
+      "brand-aqua": {
+        "role": "brand",
+        "displayName": "Brand Aqua"
+      },
+      "brand-cloud": {
         "role": "neutral",
-        "displayName": "Commuter Paper",
-        "tonalRamp": [
-          "oklch(15% 0.004 121.6)",
-          "oklch(25% 0.004 121.6)",
-          "oklch(35% 0.004 121.6)",
-          "oklch(45% 0.004 121.6)",
-          "oklch(55% 0.004 121.6)",
-          "oklch(65% 0.004 121.6)",
-          "oklch(80% 0.004 121.6)",
-          "oklch(95% 0.004 121.6)"
-        ]
+        "displayName": "Brand Cloud"
+      },
+      "arctic-pearl": {
+        "role": "neutral",
+        "displayName": "Arctic Pearl"
       },
       "surface-white": {
         "role": "neutral",
-        "displayName": "Surface White",
-        "tonalRamp": [
-          "oklch(15% 0.000 89.9)",
-          "oklch(25% 0.000 89.9)",
-          "oklch(35% 0.000 89.9)",
-          "oklch(45% 0.000 89.9)",
-          "oklch(55% 0.000 89.9)",
-          "oklch(65% 0.000 89.9)",
-          "oklch(80% 0.000 89.9)",
-          "oklch(95% 0.000 89.9)"
-        ]
+        "displayName": "Surface White"
       },
-      "raised-mist": {
+      "raised-ice": {
         "role": "neutral",
-        "displayName": "Raised Mist",
-        "tonalRamp": [
-          "oklch(15% 0.004 134.8)",
-          "oklch(25% 0.004 134.8)",
-          "oklch(35% 0.004 134.8)",
-          "oklch(45% 0.004 134.8)",
-          "oklch(55% 0.004 134.8)",
-          "oklch(65% 0.004 134.8)",
-          "oklch(80% 0.004 134.8)",
-          "oklch(95% 0.004 134.8)"
-        ]
+        "displayName": "Raised Ice"
       },
       "route-ink": {
         "role": "neutral",
-        "displayName": "Route Ink",
-        "tonalRamp": [
-          "oklch(15% 0.015 181.4)",
-          "oklch(25% 0.015 181.4)",
-          "oklch(35% 0.015 181.4)",
-          "oklch(45% 0.015 181.4)",
-          "oklch(55% 0.015 181.4)",
-          "oklch(65% 0.015 181.4)",
-          "oklch(80% 0.015 181.4)",
-          "oklch(95% 0.015 181.4)"
-        ]
+        "displayName": "Route Ink"
       },
       "muted-ink": {
         "role": "neutral",
-        "displayName": "Muted Ink",
-        "tonalRamp": [
-          "oklch(15% 0.018 181.2)",
-          "oklch(25% 0.018 181.2)",
-          "oklch(35% 0.018 181.2)",
-          "oklch(45% 0.018 181.2)",
-          "oklch(55% 0.018 181.2)",
-          "oklch(65% 0.018 181.2)",
-          "oklch(80% 0.018 181.2)",
-          "oklch(95% 0.018 181.2)"
-        ]
+        "displayName": "Muted Ink"
       },
       "quiet-ink": {
         "role": "neutral",
-        "displayName": "Quiet Ink",
-        "tonalRamp": [
-          "oklch(15% 0.018 182.3)",
-          "oklch(25% 0.018 182.3)",
-          "oklch(35% 0.018 182.3)",
-          "oklch(45% 0.018 182.3)",
-          "oklch(55% 0.018 182.3)",
-          "oklch(65% 0.018 182.3)",
-          "oklch(80% 0.018 182.3)",
-          "oklch(95% 0.018 182.3)"
-        ]
+        "displayName": "Quiet Ink"
       },
       "registration-line": {
         "role": "neutral",
-        "displayName": "Registration Line",
-        "tonalRamp": [
-          "oklch(15% 0.009 161.3)",
-          "oklch(25% 0.009 161.3)",
-          "oklch(35% 0.009 161.3)",
-          "oklch(45% 0.009 161.3)",
-          "oklch(55% 0.009 161.3)",
-          "oklch(65% 0.009 161.3)",
-          "oklch(80% 0.009 161.3)",
-          "oklch(95% 0.009 161.3)"
-        ]
+        "displayName": "Registration Line"
       },
-      "route-blue": {
+      "route-sapphire": {
         "role": "primary",
-        "displayName": "Route Blue",
-        "tonalRamp": [
-          "oklch(15% 0.169 257.6)",
-          "oklch(25% 0.169 257.6)",
-          "oklch(35% 0.169 257.6)",
-          "oklch(45% 0.169 257.6)",
-          "oklch(55% 0.169 257.6)",
-          "oklch(65% 0.169 257.6)",
-          "oklch(80% 0.169 257.6)",
-          "oklch(95% 0.169 257.6)"
-        ]
+        "displayName": "Route Sapphire"
       },
-      "route-blue-wash": {
+      "route-sapphire-wash": {
         "role": "primary",
-        "displayName": "Route Blue Wash",
-        "tonalRamp": [
-          "oklch(15% 0.023 258.4)",
-          "oklch(25% 0.023 258.4)",
-          "oklch(35% 0.023 258.4)",
-          "oklch(45% 0.023 258.4)",
-          "oklch(55% 0.023 258.4)",
-          "oklch(65% 0.023 258.4)",
-          "oklch(80% 0.023 258.4)",
-          "oklch(95% 0.023 258.4)"
-        ]
+        "displayName": "Route Sapphire Wash"
       },
       "wayfinding-teal": {
         "role": "secondary",
-        "displayName": "Wayfinding Teal",
-        "tonalRamp": [
-          "oklch(15% 0.092 185.0)",
-          "oklch(25% 0.092 185.0)",
-          "oklch(35% 0.092 185.0)",
-          "oklch(45% 0.092 185.0)",
-          "oklch(55% 0.092 185.0)",
-          "oklch(65% 0.092 185.0)",
-          "oklch(80% 0.092 185.0)",
-          "oklch(95% 0.092 185.0)"
-        ]
+        "displayName": "Wayfinding Teal"
       },
       "success-green": {
         "role": "semantic",
-        "displayName": "Success Green",
-        "tonalRamp": [
-          "oklch(15% 0.093 162.2)",
-          "oklch(25% 0.093 162.2)",
-          "oklch(35% 0.093 162.2)",
-          "oklch(45% 0.093 162.2)",
-          "oklch(55% 0.093 162.2)",
-          "oklch(65% 0.093 162.2)",
-          "oklch(80% 0.093 162.2)",
-          "oklch(95% 0.093 162.2)"
-        ]
+        "displayName": "Success Green"
       },
       "success-wash": {
         "role": "semantic",
-        "displayName": "Success Wash",
-        "tonalRamp": [
-          "oklch(15% 0.016 160.6)",
-          "oklch(25% 0.016 160.6)",
-          "oklch(35% 0.016 160.6)",
-          "oklch(45% 0.016 160.6)",
-          "oklch(55% 0.016 160.6)",
-          "oklch(65% 0.016 160.6)",
-          "oklch(80% 0.016 160.6)",
-          "oklch(95% 0.016 160.6)"
-        ]
+        "displayName": "Success Wash"
       },
       "alert-amber": {
         "role": "semantic",
-        "displayName": "Alert Amber",
-        "tonalRamp": [
-          "oklch(15% 0.102 72.5)",
-          "oklch(25% 0.102 72.5)",
-          "oklch(35% 0.102 72.5)",
-          "oklch(45% 0.102 72.5)",
-          "oklch(55% 0.102 72.5)",
-          "oklch(65% 0.102 72.5)",
-          "oklch(80% 0.102 72.5)",
-          "oklch(95% 0.102 72.5)"
-        ]
+        "displayName": "Alert Amber"
       },
       "alert-amber-wash": {
         "role": "semantic",
-        "displayName": "Alert Amber Wash",
-        "tonalRamp": [
-          "oklch(15% 0.036 86.2)",
-          "oklch(25% 0.036 86.2)",
-          "oklch(35% 0.036 86.2)",
-          "oklch(45% 0.036 86.2)",
-          "oklch(55% 0.036 86.2)",
-          "oklch(65% 0.036 86.2)",
-          "oklch(80% 0.036 86.2)",
-          "oklch(95% 0.036 86.2)"
-        ]
+        "displayName": "Alert Amber Wash"
       },
       "alert-red": {
         "role": "semantic",
-        "displayName": "Alert Red",
-        "tonalRamp": [
-          "oklch(15% 0.151 20.9)",
-          "oklch(25% 0.151 20.9)",
-          "oklch(35% 0.151 20.9)",
-          "oklch(45% 0.151 20.9)",
-          "oklch(55% 0.151 20.9)",
-          "oklch(65% 0.151 20.9)",
-          "oklch(80% 0.151 20.9)",
-          "oklch(95% 0.151 20.9)"
-        ]
+        "displayName": "Alert Red"
       },
       "alert-red-wash": {
         "role": "semantic",
-        "displayName": "Alert Red Wash",
-        "tonalRamp": [
-          "oklch(15% 0.019 9.3)",
-          "oklch(25% 0.019 9.3)",
-          "oklch(35% 0.019 9.3)",
-          "oklch(45% 0.019 9.3)",
-          "oklch(55% 0.019 9.3)",
-          "oklch(65% 0.019 9.3)",
-          "oklch(80% 0.019 9.3)",
-          "oklch(95% 0.019 9.3)"
-        ]
+        "displayName": "Alert Red Wash"
       },
-      "ink-on-blue": {
+      "obsidian": {
         "role": "neutral",
-        "displayName": "Ink on Blue",
-        "tonalRamp": [
-          "oklch(15% 0.000 89.9)",
-          "oklch(25% 0.000 89.9)",
-          "oklch(35% 0.000 89.9)",
-          "oklch(45% 0.000 89.9)",
-          "oklch(55% 0.000 89.9)",
-          "oklch(65% 0.000 89.9)",
-          "oklch(80% 0.000 89.9)",
-          "oklch(95% 0.000 89.9)"
-        ]
-      },
-      "night-paper": {
-        "role": "neutral",
-        "displayName": "Night Paper",
-        "tonalRamp": [
-          "oklch(15% 0.010 173.0)",
-          "oklch(25% 0.010 173.0)",
-          "oklch(35% 0.010 173.0)",
-          "oklch(45% 0.010 173.0)",
-          "oklch(55% 0.010 173.0)",
-          "oklch(65% 0.010 173.0)",
-          "oklch(80% 0.010 173.0)",
-          "oklch(95% 0.010 173.0)"
-        ]
+        "displayName": "Obsidian"
       },
       "night-surface": {
         "role": "neutral",
-        "displayName": "Night Surface",
-        "tonalRamp": [
-          "oklch(15% 0.011 176.2)",
-          "oklch(25% 0.011 176.2)",
-          "oklch(35% 0.011 176.2)",
-          "oklch(45% 0.011 176.2)",
-          "oklch(55% 0.011 176.2)",
-          "oklch(65% 0.011 176.2)",
-          "oklch(80% 0.011 176.2)",
-          "oklch(95% 0.011 176.2)"
-        ]
+        "displayName": "Night Surface"
       },
       "night-raised": {
         "role": "neutral",
-        "displayName": "Night Raised",
-        "tonalRamp": [
-          "oklch(15% 0.014 173.2)",
-          "oklch(25% 0.014 173.2)",
-          "oklch(35% 0.014 173.2)",
-          "oklch(45% 0.014 173.2)",
-          "oklch(55% 0.014 173.2)",
-          "oklch(65% 0.014 173.2)",
-          "oklch(80% 0.014 173.2)",
-          "oklch(95% 0.014 173.2)"
-        ]
+        "displayName": "Night Raised"
       },
       "night-ink": {
         "role": "neutral",
-        "displayName": "Night Ink",
-        "tonalRamp": [
-          "oklch(15% 0.006 153.8)",
-          "oklch(25% 0.006 153.8)",
-          "oklch(35% 0.006 153.8)",
-          "oklch(45% 0.006 153.8)",
-          "oklch(55% 0.006 153.8)",
-          "oklch(65% 0.006 153.8)",
-          "oklch(80% 0.006 153.8)",
-          "oklch(95% 0.006 153.8)"
-        ]
+        "displayName": "Night Ink"
       },
       "night-muted": {
         "role": "neutral",
-        "displayName": "Night Muted",
-        "tonalRamp": [
-          "oklch(15% 0.013 164.8)",
-          "oklch(25% 0.013 164.8)",
-          "oklch(35% 0.013 164.8)",
-          "oklch(45% 0.013 164.8)",
-          "oklch(55% 0.013 164.8)",
-          "oklch(65% 0.013 164.8)",
-          "oklch(80% 0.013 164.8)",
-          "oklch(95% 0.013 164.8)"
-        ]
+        "displayName": "Night Muted"
       },
       "night-quiet": {
         "role": "neutral",
-        "displayName": "Night Quiet",
-        "tonalRamp": [
-          "oklch(15% 0.018 168.3)",
-          "oklch(25% 0.018 168.3)",
-          "oklch(35% 0.018 168.3)",
-          "oklch(45% 0.018 168.3)",
-          "oklch(55% 0.018 168.3)",
-          "oklch(65% 0.018 168.3)",
-          "oklch(80% 0.018 168.3)",
-          "oklch(95% 0.018 168.3)"
-        ]
+        "displayName": "Night Quiet"
       },
       "night-line": {
         "role": "neutral",
-        "displayName": "Night Line",
-        "tonalRamp": [
-          "oklch(15% 0.020 171.4)",
-          "oklch(25% 0.020 171.4)",
-          "oklch(35% 0.020 171.4)",
-          "oklch(45% 0.020 171.4)",
-          "oklch(55% 0.020 171.4)",
-          "oklch(65% 0.020 171.4)",
-          "oklch(80% 0.020 171.4)",
-          "oklch(95% 0.020 171.4)"
-        ]
+        "displayName": "Night Line"
       },
-      "night-route-blue": {
+      "night-route-sapphire": {
         "role": "primary",
-        "displayName": "Night Route Blue",
-        "tonalRamp": [
-          "oklch(15% 0.116 257.9)",
-          "oklch(25% 0.116 257.9)",
-          "oklch(35% 0.116 257.9)",
-          "oklch(45% 0.116 257.9)",
-          "oklch(55% 0.116 257.9)",
-          "oklch(65% 0.116 257.9)",
-          "oklch(80% 0.116 257.9)",
-          "oklch(95% 0.116 257.9)"
-        ]
+        "displayName": "Night Route Sapphire"
       },
-      "night-route-blue-wash": {
+      "night-route-sapphire-wash": {
         "role": "primary",
-        "displayName": "Night Route Blue Wash",
-        "tonalRamp": [
-          "oklch(15% 0.050 254.8)",
-          "oklch(25% 0.050 254.8)",
-          "oklch(35% 0.050 254.8)",
-          "oklch(45% 0.050 254.8)",
-          "oklch(55% 0.050 254.8)",
-          "oklch(65% 0.050 254.8)",
-          "oklch(80% 0.050 254.8)",
-          "oklch(95% 0.050 254.8)"
-        ]
+        "displayName": "Night Route Sapphire Wash"
       },
-      "night-wayfinding-teal": {
+      "night-wayfinding-aqua": {
         "role": "secondary",
-        "displayName": "Night Wayfinding Teal",
-        "tonalRamp": [
-          "oklch(15% 0.098 180.5)",
-          "oklch(25% 0.098 180.5)",
-          "oklch(35% 0.098 180.5)",
-          "oklch(45% 0.098 180.5)",
-          "oklch(55% 0.098 180.5)",
-          "oklch(65% 0.098 180.5)",
-          "oklch(80% 0.098 180.5)",
-          "oklch(95% 0.098 180.5)"
-        ]
+        "displayName": "Night Wayfinding Aqua"
       },
       "night-success": {
         "role": "semantic",
-        "displayName": "Night Success",
-        "tonalRamp": [
-          "oklch(15% 0.068 156.5)",
-          "oklch(25% 0.068 156.5)",
-          "oklch(35% 0.068 156.5)",
-          "oklch(45% 0.068 156.5)",
-          "oklch(55% 0.068 156.5)",
-          "oklch(65% 0.068 156.5)",
-          "oklch(80% 0.068 156.5)",
-          "oklch(95% 0.068 156.5)"
-        ]
+        "displayName": "Night Success"
       },
       "night-success-wash": {
         "role": "semantic",
-        "displayName": "Night Success Wash",
-        "tonalRamp": [
-          "oklch(15% 0.039 160.1)",
-          "oklch(25% 0.039 160.1)",
-          "oklch(35% 0.039 160.1)",
-          "oklch(45% 0.039 160.1)",
-          "oklch(55% 0.039 160.1)",
-          "oklch(65% 0.039 160.1)",
-          "oklch(80% 0.039 160.1)",
-          "oklch(95% 0.039 160.1)"
-        ]
+        "displayName": "Night Success Wash"
       },
       "night-alert-amber": {
         "role": "semantic",
-        "displayName": "Night Alert Amber",
-        "tonalRamp": [
-          "oklch(15% 0.110 82.5)",
-          "oklch(25% 0.110 82.5)",
-          "oklch(35% 0.110 82.5)",
-          "oklch(45% 0.110 82.5)",
-          "oklch(55% 0.110 82.5)",
-          "oklch(65% 0.110 82.5)",
-          "oklch(80% 0.110 82.5)",
-          "oklch(95% 0.110 82.5)"
-        ]
+        "displayName": "Night Alert Amber"
       },
       "night-alert-amber-wash": {
         "role": "semantic",
-        "displayName": "Night Alert Amber Wash",
-        "tonalRamp": [
-          "oklch(15% 0.034 82.8)",
-          "oklch(25% 0.034 82.8)",
-          "oklch(35% 0.034 82.8)",
-          "oklch(45% 0.034 82.8)",
-          "oklch(55% 0.034 82.8)",
-          "oklch(65% 0.034 82.8)",
-          "oklch(80% 0.034 82.8)",
-          "oklch(95% 0.034 82.8)"
-        ]
+        "displayName": "Night Alert Amber Wash"
       },
       "night-alert-red": {
         "role": "semantic",
-        "displayName": "Night Alert Red",
-        "tonalRamp": [
-          "oklch(15% 0.088 13.8)",
-          "oklch(25% 0.088 13.8)",
-          "oklch(35% 0.088 13.8)",
-          "oklch(45% 0.088 13.8)",
-          "oklch(55% 0.088 13.8)",
-          "oklch(65% 0.088 13.8)",
-          "oklch(80% 0.088 13.8)",
-          "oklch(95% 0.088 13.8)"
-        ]
+        "displayName": "Night Alert Red"
       },
       "night-alert-red-wash": {
         "role": "semantic",
-        "displayName": "Night Alert Red Wash",
-        "tonalRamp": [
-          "oklch(15% 0.037 11.4)",
-          "oklch(25% 0.037 11.4)",
-          "oklch(35% 0.037 11.4)",
-          "oklch(45% 0.037 11.4)",
-          "oklch(55% 0.037 11.4)",
-          "oklch(65% 0.037 11.4)",
-          "oklch(80% 0.037 11.4)",
-          "oklch(95% 0.037 11.4)"
-        ]
-      },
-      "night-ink-on-blue": {
-        "role": "neutral",
-        "displayName": "Night Ink on Blue",
-        "tonalRamp": [
-          "oklch(15% 0.053 258.0)",
-          "oklch(25% 0.053 258.0)",
-          "oklch(35% 0.053 258.0)",
-          "oklch(45% 0.053 258.0)",
-          "oklch(55% 0.053 258.0)",
-          "oklch(65% 0.053 258.0)",
-          "oklch(80% 0.053 258.0)",
-          "oklch(95% 0.053 258.0)"
-        ]
+        "displayName": "Night Alert Red Wash"
       }
     },
     "typographyMeta": {
@@ -509,7 +181,91 @@
     },
     "shadows": [],
     "motion": [],
-    "breakpoints": []
+    "breakpoints": [],
+    "tokens": {
+      "colors": {
+        "brand-midnight": "#07182F",
+        "brand-ocean": "#0D294B",
+        "brand-sapphire": "#0869A8",
+        "brand-aqua": "#00D3C5",
+        "brand-cloud": "#F7FAFF",
+        "arctic-pearl": "#F7FAFF",
+        "surface-white": "#FFFFFF",
+        "raised-ice": "#EDF3F9",
+        "route-ink": "#07182F",
+        "muted-ink": "#41546C",
+        "quiet-ink": "#566D86",
+        "registration-line": "#D7E2ED",
+        "route-sapphire": "#0869A8",
+        "route-sapphire-wash": "#E2F0F9",
+        "wayfinding-teal": "#007B78",
+        "success-green": "#176A4A",
+        "success-wash": "#E8F4ED",
+        "alert-amber": "#87590E",
+        "alert-amber-wash": "#FFF3D9",
+        "alert-red": "#A12D36",
+        "alert-red-wash": "#FCEBED",
+        "obsidian": "#050C17",
+        "night-surface": "#0A1626",
+        "night-raised": "#0D294B",
+        "night-ink": "#F7FAFF",
+        "night-muted": "#C1D0E0",
+        "night-quiet": "#9BAFC4",
+        "night-line": "#263B54",
+        "night-route-sapphire": "#3F9ED4",
+        "night-route-sapphire-wash": "#102E49",
+        "night-wayfinding-aqua": "#00D3C5",
+        "night-success": "#8BD8AB",
+        "night-success-wash": "#132D29",
+        "night-alert-amber": "#F6CE7C",
+        "night-alert-amber-wash": "#352A18",
+        "night-alert-red": "#FFB3B8",
+        "night-alert-red-wash": "#3B2028"
+      },
+      "gradient": {
+        "navo": {
+          "angle": "105deg",
+          "stops": [
+            {
+              "offset": "0%",
+              "color": "#0B3B88"
+            },
+            {
+              "offset": "48%",
+              "color": "#0869A8"
+            },
+            {
+              "offset": "100%",
+              "color": "#00D3C5"
+            }
+          ]
+        }
+      },
+      "themes": {
+        "light": {
+          "background": "#F7FAFF",
+          "surface": "#FFFFFF",
+          "raised": "#EDF3F9",
+          "ink": "#07182F",
+          "muted": "#41546C",
+          "quiet": "#566D86",
+          "line": "#D7E2ED",
+          "accent": "#0869A8",
+          "accentSoft": "#E2F0F9"
+        },
+        "dark": {
+          "background": "#050C17",
+          "surface": "#0A1626",
+          "raised": "#0D294B",
+          "ink": "#F7FAFF",
+          "muted": "#C1D0E0",
+          "quiet": "#9BAFC4",
+          "line": "#263B54",
+          "accent": "#3F9ED4",
+          "accentSoft": "#102E49"
+        }
+      }
+    }
   },
   "components": [
     {
@@ -518,7 +274,7 @@
       "refersTo": "button-primary",
       "description": "The single main action on a screen.",
       "html": "<button class=\"ds-button-primary\">Start destination alarm</button>",
-      "css": ".ds-button-primary{background:#246DD0;color:#FFFFFF;border:0;border-radius:14px;min-height:54px;padding:0 24px;font:700 16px system-ui,sans-serif;transition:opacity .15s ease}.ds-button-primary:hover{opacity:.9}.ds-button-primary:focus-visible{outline:3px solid #087D73;outline-offset:3px}.ds-button-primary:active{opacity:.78}"
+      "css": ".ds-button-primary{background:#0869A8;color:#FFFFFF;border:0;border-radius:14px;min-height:54px;padding:0 24px;font:700 16px system-ui,sans-serif;transition:opacity .15s ease}.ds-button-primary:hover{opacity:.9}.ds-button-primary:focus-visible{outline:3px solid #007B78;outline-offset:3px}.ds-button-primary:active{opacity:.78}"
     },
     {
       "name": "Secondary Button",
@@ -526,7 +282,7 @@
       "refersTo": "button-secondary",
       "description": "A reversible alternative action.",
       "html": "<button class=\"ds-button-secondary\">End trip</button>",
-      "css": ".ds-button-secondary{background:transparent;color:#17211F;border:1px solid #D9E0DC;border-radius:14px;min-height:50px;padding:0 24px;font:700 16px system-ui,sans-serif;transition:opacity .15s ease}.ds-button-secondary:hover{background:#F0F2EF}.ds-button-secondary:focus-visible{outline:3px solid #246DD0;outline-offset:3px}.ds-button-secondary:active{opacity:.72}"
+      "css": ".ds-button-secondary{background:transparent;color:#07182F;border:1px solid #D7E2ED;border-radius:14px;min-height:50px;padding:0 24px;font:700 16px system-ui,sans-serif;transition:opacity .15s ease}.ds-button-secondary:hover{background:#EDF3F9}.ds-button-secondary:focus-visible{outline:3px solid #0869A8;outline-offset:3px}.ds-button-secondary:active{opacity:.72}"
     },
     {
       "name": "Bus Route Field",
@@ -534,7 +290,7 @@
       "refersTo": "text-field",
       "description": "A native-style route name field with a quiet underline.",
       "html": "<label class=\"ds-field-label\" for=\"route-name\">Route name</label><input id=\"route-name\" class=\"ds-route-field\" value=\"EDSA Carousel\" />",
-      "css": ".ds-field-label{display:block;color:#53615E;font:700 11px system-ui,sans-serif;letter-spacing:.7px;text-transform:uppercase}.ds-route-field{box-sizing:border-box;width:100%;min-height:48px;padding:0 2px;color:#17211F;background:transparent;border:0;border-bottom:1px solid #D9E0DC;border-radius:0;font:400 16px system-ui,sans-serif}.ds-route-field:focus-visible{outline:2px solid #246DD0;outline-offset:2px}"
+      "css": ".ds-field-label{display:block;color:#41546C;font:700 11px system-ui,sans-serif;letter-spacing:.7px;text-transform:uppercase}.ds-route-field{box-sizing:border-box;width:100%;min-height:48px;padding:0 2px;color:#07182F;background:transparent;border:0;border-bottom:1px solid #D7E2ED;border-radius:0;font:400 16px system-ui,sans-serif}.ds-route-field:focus-visible{outline:2px solid #0869A8;outline-offset:2px}"
     },
     {
       "name": "Data Seal",
@@ -542,15 +298,15 @@
       "refersTo": "data-seal",
       "description": "Compact source or reliability status.",
       "html": "<span class=\"ds-data-seal\"><span class=\"ds-seal-dot\"></span>Station order only</span>",
-      "css": ".ds-data-seal{display:inline-flex;align-items:center;gap:7px;min-height:28px;padding:0 9px;color:#53615E;background:#F0F2EF;border:1px solid #53615E;border-radius:7px;font:700 11px system-ui,sans-serif;letter-spacing:.45px;text-transform:uppercase}.ds-seal-dot{width:6px;height:6px;flex:0 0 6px;background:#53615E;border-radius:50%}"
+      "css": ".ds-data-seal{display:inline-flex;align-items:center;gap:7px;min-height:28px;padding:0 9px;color:#41546C;background:#EDF3F9;border:1px solid #41546C;border-radius:7px;font:700 11px system-ui,sans-serif;letter-spacing:.45px;text-transform:uppercase}.ds-seal-dot{width:6px;height:6px;flex:0 0 6px;background:#41546C;border-radius:50%}"
     },
     {
       "name": "Route Progress",
       "kind": "custom",
       "refersTo": "route-line",
-      "description": "One connected route with a distinct passed, next, and destination state.",
+      "description": "A connected route line with a reserved brand gradient for active trip progress.",
       "html": "<div class=\"ds-route-progress\"><span class=\"ds-stop ds-passed\">1</span><span class=\"ds-route-segment\"></span><span class=\"ds-stop ds-next\">2</span><span class=\"ds-route-segment\"></span><span class=\"ds-stop ds-destination\">3</span></div>",
-      "css": ".ds-route-progress{display:flex;align-items:center;width:100%;min-height:24px}.ds-stop{display:grid;place-items:center;width:22px;height:22px;border:2px solid #71807D;border-radius:50%;font:700 10px system-ui,sans-serif}.ds-passed,.ds-next{color:#FFFFFF;background:#246DD0;border-color:#246DD0}.ds-destination{color:#17211F;background:#FFFFFF;border-color:#246DD0}.ds-route-segment{height:2px;flex:1;background:#D9E0DC}.ds-passed+.ds-route-segment{background:#246DD0}"
+      "css": ".ds-route-progress{display:flex;align-items:center;width:100%;min-height:24px}.ds-stop{display:grid;place-items:center;width:22px;height:22px;border:2px solid #566D86;border-radius:50%;font:700 10px system-ui,sans-serif}.ds-passed,.ds-next{color:#FFFFFF;background:#0869A8;border-color:#0869A8}.ds-destination{color:#07182F;background:#FFFFFF;border-color:#0869A8}.ds-route-segment{height:2px;flex:1;background:#D7E2ED}.ds-passed+.ds-route-segment{background:#0869A8}.ds-active-progress{height:3px;background-image:linear-gradient(105deg,#0B3B88 0%,#0869A8 48%,#00D3C5 100%)}"
     },
     {
       "name": "Numbered Stop Row",
@@ -558,21 +314,29 @@
       "refersTo": "route-line",
       "description": "An ordered stop label paired with a compact sequence number.",
       "html": "<div class=\"ds-stop-row\"><span class=\"ds-stop-number\">03</span><span class=\"ds-stop-name\">Abad Santos</span><span class=\"ds-stop-state\">NEXT</span></div>",
-      "css": ".ds-stop-row{display:flex;align-items:center;gap:12px;min-height:42px;padding:0 8px;border-bottom:1px solid #D9E0DC;color:#17211F;font:400 15px system-ui,sans-serif}.ds-stop-number{width:28px;color:#53615E;font:700 12px system-ui,sans-serif;font-variant-numeric:tabular-nums}.ds-stop-name{flex:1}.ds-stop-state{color:#246DD0;font:700 10px system-ui,sans-serif;letter-spacing:.5px}"
+      "css": ".ds-stop-row{display:flex;align-items:center;gap:12px;min-height:42px;padding:0 8px;border-bottom:1px solid #D7E2ED;color:#07182F;font:400 15px system-ui,sans-serif}.ds-stop-number{width:28px;color:#41546C;font:700 12px system-ui,sans-serif;font-variant-numeric:tabular-nums}.ds-stop-name{flex:1}.ds-stop-state{color:#0869A8;font:700 10px system-ui,sans-serif;letter-spacing:.5px}"
+    },
+    {
+      "name": "Appearance Selector",
+      "kind": "control",
+      "refersTo": "theme-preference",
+      "description": "A saved Light or Dark preference, with Light selected for first use.",
+      "html": "<div class=ds-appearance><button aria-pressed=true>Light</button><button aria-pressed=false>Dark</button></div>",
+      "css": ".ds-appearance{display:flex;gap:10px}.ds-appearance button{min-height:48px;flex:1;border:1px solid #D7E2ED;border-radius:12px;background:#FFFFFF;color:#07182F;font:600 15px system-ui,sans-serif}.ds-appearance button[aria-pressed=true]{border-color:#0869A8;background:#E2F0F9}"
     }
   ],
   "narrative": {
-    "northStar": "The Quiet Route Plate",
-    "overview": "Navo treats each trip as a small printed wayfinding plate: a near-white field, one clear route line, numbered stops, fine separators, and a compact source-quality seal. The mark\u2019s blue-to-teal gradient lives in the editable SVG; the interface uses route blue for the rider\u2019s active choice and teal as a restrained supporting brand color.\n\nThe native interface keeps familiar tabs, switches, safe areas, and platform type. Setup stays calm and legible; an active trip brings the destination and next stop forward. The system shows what it knows about a route and leaves the rider a manual way to advance.",
+    "northStar": "Deep Current, Quiet Route Plate",
+    "overview": "Navo carries a permanent navy, sapphire, and aqua identity across themes. The default Arctic Pearl interface is bright and quiet; Obsidian is a manually selected night palette. The Navo gradient is reserved for the mark, splash branding, active trip progress, and a few important branded highlights. Most surfaces stay solid, while the connected route line, manual progress, and source-quality seal keep the trip legible without implying an ETA or live service data. The selected appearance is applied to native controls and system alerts in this app.",
     "keyCharacteristics": [
-      "Paper-like light surfaces with a complete system-driven dark palette.",
-      "One blue route signal, connected numbered stops, and fine registration lines.",
-      "Calm setup, clear active progress, and visible data-quality seals."
+      "Deep Current brand colors remain recognizable in either theme.",
+      "Arctic Pearl is the default; Obsidian is an optional saved preference.",
+      "Solid mobile surfaces make the route, destination, and reliability state easy to scan."
     ],
     "rules": [
       {
-        "name": "The Accent Discipline Rule",
-        "body": "Route blue marks the current action or progress. Teal supports route authorship and confirmation; it does not replace warning or error colors.",
+        "name": "The Gradient Reserve Rule",
+        "body": "Use the exact Navo gradient for the mark, splash brand, active route progress, and rare important highlights. Keep ordinary controls and surfaces solid.",
         "section": "colors"
       },
       {
@@ -587,16 +351,16 @@
       }
     ],
     "dos": [
-      "Do show whether route coordinates are rider-saved, missing, or unavailable before starting location-based alerts.",
-      "Do keep a manual confirmation action available when the app cannot use location.",
-      "Do show the source and sequence without implying an ETA or live service feed.",
-      "Do use native navigation and controls while carrying the route-plate language through the content."
+      "Do default to Arctic Pearl and let riders choose Obsidian in Settings.",
+      "Do keep Brand Midnight as the app and launcher backplate in every theme.",
+      "Do use gradient only for the mark, splash brand, active progress, and important highlights.",
+      "Do keep manual progress and route-data quality visible."
     ],
     "donts": [
-      "Don't show unverified station coordinates as operational route data.",
-      "Don't present straight-line route checks as precise bus navigation.",
-      "Don't imply Navo overrides Focus, silent mode, battery limits, or operating-system background restrictions.",
-      "Don't add geographic map decoration until route coordinates have been checked."
+      "Do not use Brand Aqua for small text on light surfaces.",
+      "Do not show unverified station coordinates as operational route data.",
+      "Do not imply an ETA, live service feed, guaranteed alert delivery, or alarm-clock override.",
+      "Do not add map decoration until route coordinates have been checked."
     ]
   }
 }

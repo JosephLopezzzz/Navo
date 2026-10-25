@@ -12,6 +12,7 @@
     ],
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#07182F",
     "ios": {
       "bundleIdentifier": "com.josephlopezzzz.navo",
       "supportsTablet": false
@@ -21,7 +22,7 @@
       "versionCode": 2,
       "predictiveBackGestureEnabled": true,
       "adaptiveIcon": {
-        "backgroundColor": "#062349",
+        "backgroundColor": "#07182F",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png"
       },
@@ -36,6 +37,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-system-ui",
       [
         "expo-location",
         {
@@ -51,7 +53,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#2478E6",
+          "color": "#0869A8",
           "defaultChannel": "navo-trip"
         }
       ],
@@ -62,7 +64,7 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 150,
           "resizeMode": "contain",
-          "backgroundColor": "#F6F7F4"
+          "backgroundColor": "#07182F"
         }
       ]
     ],

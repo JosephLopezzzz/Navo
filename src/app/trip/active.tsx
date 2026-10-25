@@ -117,7 +117,7 @@ export default function ActiveTripScreen() {
           <Subtle>ROUTE PROGRESS</Subtle>
           <Text style={[styles.progressValue, { color: colors.ink }]}>{Math.min(passed + 1, trip.destinationIndex + 1)} of {trip.destinationIndex + 1}</Text>
         </View>
-        <RouteLine passed={passed} total={trip.destinationIndex + 1} destinationLabel={destination?.name} />
+        <RouteLine passed={passed} total={trip.destinationIndex + 1} destinationLabel={destination?.name} signatureGradient />
         <View style={styles.nextBlock}>
           <Subtle>{nextIndex === trip.destinationIndex ? 'NEXT STOP · DESTINATION' : 'NEXT STOP'}</Subtle>
           <Text style={[styles.nextStop, { color: colors.ink }]}>{nextStop?.name ?? 'Destination reached'}</Text>

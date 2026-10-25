@@ -8,16 +8,10 @@ export function NavoMark({ size = 44 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 512 512" accessibilityLabel="Navo" role="img">
       <Defs>
-        <LinearGradient id="navoLogoTile" x1="0%" y1="0%" x2="100%" y2="100%">
-          <Stop offset="0" stopColor="#082C62" />
-          <Stop offset="1" stopColor="#03183B" />
-        </LinearGradient>
-        <LinearGradient id="navoLogoBody" x1="0%" y1="50%" x2="100%" y2="50%">
-          <Stop offset="0" stopColor="#06458E" />
-          <Stop offset=".22" stopColor="#087EB5" />
-          <Stop offset=".47" stopColor="#08BFC3" />
-          <Stop offset=".7" stopColor="#04D1C1" />
-          <Stop offset="1" stopColor="#04B8B9" />
+        <LinearGradient id="navoLogoBody" x1="0%" y1="35%" x2="100%" y2="65%">
+          <Stop offset="0%" stopColor="#0B3B88" />
+          <Stop offset="48%" stopColor="#0869A8" />
+          <Stop offset="100%" stopColor="#00D3C5" />
         </LinearGradient>
         <LinearGradient id="navoLogoDepth" x1="0%" y1="0%" x2="0%" y2="100%">
           <Stop stopColor="#001B4B" stopOpacity="0" />
@@ -31,7 +25,7 @@ export function NavoMark({ size = 44 }: { size?: number }) {
           <Stop offset="1" stopColor="#06356F" />
         </LinearGradient>
       </Defs>
-      <Rect width="512" height="512" rx="138" fill="url(#navoLogoTile)" />
+      <Rect width="512" height="512" rx="138" fill="#07182F" />
       <Path d={bodyPath} fill="url(#navoLogoBody)" />
       <Path d={bodyPath} fill="url(#navoLogoDepth)" />
       <Path d={pinPath} fill="url(#navoLogoPin)" fillRule="evenodd" />
