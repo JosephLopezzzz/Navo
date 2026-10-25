@@ -19,26 +19,40 @@ Navo is an offline-first destination alarm for Philippine bus and LRT-1, LRT-2, 
 
 Location alerts use a 500 m approach radius and a 120 m arrival threshold when a fix is accurate within 80 m. A missed or low-quality fix never removes the manual progress action. The app never calls a location sample verified merely because it is present. Bus coordinates are collected only when the rider taps “Save current location” while physically at a stop. Straight-line checks can be wrong on curved roads or when GPS is noisy.
 
-## Local development
+## Run Navo on an Android phone
 
-Requirements: Node.js 24 and npm.
+Navo uses native background location and notification services, so use its Android APK instead of Expo Go. The EAS project is linked in `app.json`; cloud builds do not require Android Studio or the Android SDK on your computer.
+
+### Install the app
+
+Requirements: Node.js 24, npm, an Expo account, an internet connection, and an Android phone.
+
+From the project folder, build an installable preview APK:
 
 ~~~sh
 npm ci
-npm run start
+npx eas-cli@latest build --profile preview --platform android
 ~~~
 
-Background location and notifications use native modules, so Expo Go is not a suitable acceptance target. Install a development build, then start Metro for that client:
+When EAS finishes, open the build page on your phone, tap **Install**, download the APK, and approve Android's prompt to install an app from your browser if it appears. Open Navo from your app list. The preview APK runs without Metro or your computer; build another preview APK to install newer code.
+
+### Develop with live reload
+
+For local code changes to appear on the phone, install the development APK once:
 
 ~~~sh
 npx eas-cli@latest build --profile development --platform android
-npx eas-cli@latest build --profile development --platform ios
-npm run start -- --dev-client
 ~~~
 
-An EAS account and signing credentials are needed for cloud builds. For a local Android build, use npx expo run:android with Android Studio and the Android SDK installed. iOS local builds require macOS and Xcode.
+Open the build page on your phone and install its APK. Then connect the computer and phone to the same Wi-Fi network, return to the project folder, and start Expo:
 
-The development profile uses expo-dev-client; preview and production profiles are in eas.json.
+~~~sh
+npm run start -- --dev-client --lan
+~~~
+
+Open the Navo development app on your phone and scan the QR code shown in the terminal. JavaScript and TypeScript edits reload through Metro. Rebuild and reinstall after changing native packages or app permissions.
+
+EAS handles Android signing for these internal APKs. Local Android builds are also available with `npx expo run:android` if Android Studio, the Android SDK, and a connected phone or emulator are installed. iOS local builds require macOS and Xcode.
 
 ## Checks
 

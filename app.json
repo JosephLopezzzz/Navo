@@ -65,6 +65,12 @@
           "backgroundColor": "#F6F7F4"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "25b8b781-f5c1-4e38-8484-9382af954733"
+      }
+    },
+    "owner": "josephlopezzzz"
   }
 }
