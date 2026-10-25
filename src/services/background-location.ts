@@ -76,7 +76,7 @@ export async function beginBackgroundLocation(settings: { updateDistanceM: numbe
       name: 'Navo trip alerts',
       importance: AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 120, 250],
-      lightColor: '#2478E6',
+      lightColor: '#0869A8',
     });
   }
   const notificationPermission = await Notifications.requestPermissionsAsync();
@@ -97,7 +97,7 @@ export async function beginBackgroundLocation(settings: { updateDistanceM: numbe
       foregroundService: {
         notificationTitle: 'Navo trip is active',
         notificationBody: 'Location is used for this destination trip.',
-        notificationColor: '#2478E6',
+        notificationColor: '#0869A8',
       },
     } : {}),
   };

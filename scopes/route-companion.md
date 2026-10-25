@@ -4,7 +4,7 @@ Seed: `c785c651` · selected kind: assigned · build path: code · user lock: 20
 
 ## World
 
-A quiet commuter route guide treated like an editorial route plate: near-white paper tone, one ink voice, hairline registration marks, a single route line, numbered stops, and a small source-quality seal. The blue-to-teal Navo mark supplies the accent. The image is disciplined printed wayfinding, not a literal magazine page. Native navigation and controls remain platform-familiar.
+A quiet commuter route guide treated like an editorial route plate. Arctic Pearl is the default canvas, Brand Midnight anchors the identity, and Brand Sapphire marks the selected route. Hairline separators, numbered stops, and a small source-quality seal preserve the printed-wayfinding grammar without turning the screen into a literal magazine page. The Navo gradient stays on the mark and active trip progress. Obsidian is an optional saved night palette. Native navigation and controls remain platform-familiar.
 
 ## First viewport
 
@@ -16,7 +16,7 @@ Choose LRT-1, LRT-2, MRT-3, or make a bus route; select boarding and destination
 
 ## Signature interaction
 
-Selecting boarding and destination cuts the line's ordered list down to the rider's exact direction. The route plate then remains the trip's progress surface: passed, next, and destination stops have distinct labels and a connected route mark. Every progression step can also be confirmed by the rider.
+Selecting boarding and destination cuts the line's ordered list down to the rider's exact direction. The route plate then remains the trip's progress surface: passed, next, and destination stops have distinct labels and a connected route mark. Active progress may use the Navo gradient; every progression step can also be confirmed by the rider.
 
 ## Cross-surface reach
 

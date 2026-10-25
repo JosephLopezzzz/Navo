@@ -39,7 +39,7 @@ export default function SettingsScreen() {
     setBusy(true);
     try {
       if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('navo-trip', { name: 'Navo trip alerts', importance: AndroidImportance.HIGH, vibrationPattern: [0, 250, 120, 250], lightColor: '#2478E6' });
+        await Notifications.setNotificationChannelAsync('navo-trip', { name: 'Navo trip alerts', importance: AndroidImportance.HIGH, vibrationPattern: [0, 250, 120, 250], lightColor: '#0869A8' });
       }
       await Notifications.requestPermissionsAsync();
       await Location.requestForegroundPermissionsAsync();
@@ -65,6 +65,16 @@ export default function SettingsScreen() {
           <PrimaryButton title="Retry saved data" onPress={() => void app.refreshState()} />
         </View>
       )}
+
+      <View style={styles.settingBlock}>
+        <SectionTitle>Appearance</SectionTitle>
+        <Subtle>Light is on by default. Choose a darker palette for evening rides.</Subtle>
+        <View style={styles.optionRow}>
+          <Option label="Light" detail="Arctic Pearl" selected={settings.appearance === 'light'} onPress={() => updateState({ settings: { ...settings, appearance: 'light' } })} />
+          <Option label="Dark" detail="Obsidian" selected={settings.appearance === 'dark'} onPress={() => updateState({ settings: { ...settings, appearance: 'dark' } })} />
+        </View>
+      </View>
+      <Divider />
 
       <View style={styles.switchRow}>
         <View style={styles.switchCopy}>
