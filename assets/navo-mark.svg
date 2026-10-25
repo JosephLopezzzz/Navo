@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Navo app mark</title>
+  <desc id="desc">A white route sweeps across a rounded blue to teal N and ends at a location pin.</desc>
+  <defs>
+    <linearGradient id="navo-gradient" x1="64" y1="96" x2="452" y2="432" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2478E6"/>
+      <stop offset="1" stop-color="#19B9A7"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="138" fill="url(#navo-gradient)"/>
+  <path d="M139 377V137L373 377V137" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="48" opacity=".33"/>
+  <path d="M133 292C177 292 190 258 223 256C257 254 265 281 297 273C329 265 342 223 373 208" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="13"/>
+  <path d="M373 112C348 112 329 131 329 156C329 190 373 222 373 222C373 222 417 190 417 156C417 131 398 112 373 112Z" fill="#fff"/>
+  <circle cx="373" cy="156" r="13" fill="#228FAF"/>
+</svg>
