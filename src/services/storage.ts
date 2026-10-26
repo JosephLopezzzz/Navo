@@ -10,7 +10,8 @@ export interface AppSettings {
   updateDistanceM: number;
   updateIntervalMs: number;
   sleepMode: boolean;
-  appearance: 'light' | 'dark';
+  appearance: 'system' | 'light' | 'dark';
+  locationNoticeDismissed: boolean;
 }
 export interface StoredAppState {
   schemaVersion: 2;
@@ -32,6 +33,7 @@ export const defaultSettings: AppSettings = {
   updateIntervalMs: 20_000,
   sleepMode: true,
   appearance: 'light',
+  locationNoticeDismissed: false,
 };
 export const defaultAppState: StoredAppState = {
   schemaVersion: 2,
@@ -59,7 +61,10 @@ export function normalizeAppState(value: unknown): StoredAppState {
     settings: {
       ...defaultSettings,
       ...parsed.settings,
-      appearance: parsed.settings?.appearance === 'dark' ? 'dark' : 'light',
+      appearance: parsed.settings?.appearance === 'dark'
+        ? 'dark'
+        : parsed.settings?.appearance === 'system' ? 'system' : 'light',
+      locationNoticeDismissed: parsed.settings?.locationNoticeDismissed === true,
     },
   };
 }

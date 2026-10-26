@@ -4,12 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { navoGradient, useNavoColors, spacing } from '../theme/colors';
 
-export function Screen({ children, scroll = true }: PropsWithChildren<{ scroll?: boolean }>) {
+export function Screen({ children, scroll = true, tabBar = false }: PropsWithChildren<{ scroll?: boolean; tabBar?: boolean }>) {
   const colors = useNavoColors();
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       {scroll ? (
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.content, tabBar && styles.tabContent]} keyboardShouldPersistTaps="handled">
           {children}
         </ScrollView>
       ) : <View style={styles.content}>{children}</View>}
@@ -121,19 +121,20 @@ export function RouteLine({ passed = 0, total, destinationLabel, signatureGradie
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 40, gap: spacing.lg, flexGrow: 1 },
+  content: { paddingHorizontal: 20, paddingTop: spacing.md, paddingBottom: 40, gap: spacing.lg, flexGrow: 1 },
+  tabContent: { paddingBottom: 132 },
   body: { fontSize: 16, lineHeight: 23 },
   subtle: { fontSize: 14, lineHeight: 20 },
-  title: { fontSize: 32, fontWeight: '700', letterSpacing: -0.8, lineHeight: 38 },
+  title: { fontSize: 26, fontWeight: '700', letterSpacing: -0.6, lineHeight: 32 },
   sectionTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md },
   sectionText: { fontSize: 19, fontWeight: '600', letterSpacing: -0.25 },
   primaryButton: { minHeight: 54, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
   primaryText: { fontSize: 16, fontWeight: '700' },
   secondaryButton: { minHeight: 50, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
   secondaryText: { fontSize: 15, fontWeight: '600' },
-  seal: { minHeight: 28, alignSelf: 'flex-start', borderWidth: 1, borderRadius: 7, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  seal: { minHeight: 26, alignSelf: 'flex-start', borderWidth: 1, borderRadius: 7, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
   sealDot: { width: 6, height: 6, borderRadius: 3 },
-  sealText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.45, textTransform: 'uppercase' },
+  sealText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.1 },
   divider: { height: StyleSheet.hairlineWidth, width: '100%' },
   routeLineWrap: { paddingVertical: 9, paddingHorizontal: 4 },
   routeTrack: { height: 3, position: 'relative', justifyContent: 'center' },

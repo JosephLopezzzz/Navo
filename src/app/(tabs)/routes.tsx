@@ -10,7 +10,7 @@ export default function RoutesScreen() {
   const colors = useNavoColors();
   const { customBusRoutes } = useAppState();
   return (
-    <Screen>
+    <Screen tabBar>
       <ScreenTitle>Routes</ScreenTitle>
       <Subtle>Rail stop order is available offline. Location points are not bundled yet.</Subtle>
       <SectionTitle>Rail</SectionTitle>

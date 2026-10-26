@@ -33,8 +33,8 @@ function RootNavigator() {
   const isLoadingAppearance = !app.ready && !app.storageProblem;
   useEffect(() => {
     if (!app.ready && !app.storageProblem) return;
-    Appearance.setColorScheme(colors.isDark ? 'dark' : 'light');
-  }, [app.ready, app.storageProblem, colors.isDark]);
+    Appearance.setColorScheme(app.settings.appearance === 'system' ? 'auto' : app.settings.appearance);
+  }, [app.ready, app.storageProblem, app.settings.appearance]);
   useEffect(() => {
     if (app.ready || app.storageProblem) void SplashScreen.hideAsync();
   }, [app.ready, app.storageProblem]);
@@ -54,6 +54,8 @@ function RootNavigator() {
       }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="destination/pick" options={{ title: 'Choose a destination', headerShown: false }} />
+        <Stack.Screen name="destination/map" options={{ title: 'Pick on map', headerShown: false }} />
+        <Stack.Screen name="legal/[page]" options={{ title: 'Navo information', headerShown: false }} />
         <Stack.Screen name="trip/setup" options={{ title: 'Choose your stops' }} />
         <Stack.Screen name="trip/active" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="bus/new" options={{ title: 'Create a bus route' }} />

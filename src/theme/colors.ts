@@ -1,4 +1,5 @@
 import { useAppState } from '../state/AppStateProvider';
+import { useColorScheme } from 'react-native';
 
 export const brand = {
   midnight: '#07182F',
@@ -58,7 +59,11 @@ export type NavoColors = Record<Exclude<keyof typeof light, 'isDark'>, string> &
 
 export function useNavoColors(): NavoColors {
   const { settings } = useAppState();
-  return settings.appearance === 'dark' ? dark : light;
+  const systemAppearance = useColorScheme();
+  const isDark = settings.appearance === 'system'
+    ? systemAppearance === 'dark'
+    : settings.appearance === 'dark';
+  return isDark ? dark : light;
 }
 
 export const spacing = { xs: 6, sm: 10, md: 16, lg: 24, xl: 32, xxl: 44 } as const;
