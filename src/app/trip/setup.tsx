@@ -167,7 +167,7 @@ export default function TripSetupScreen() {
           <Body>Sleep mode</Body>
           <Subtle>{alertMode === 'destination-only' ? 'Alert only near your destination.' : 'Alert near each upcoming stop.'}</Subtle>
         </View>
-        <Switch accessibilityLabel="Sleep mode, destination only" value={alertMode === 'destination-only'} onValueChange={(sleep) => setAlertModeOverride(sleep ? 'destination-only' : 'every-stop')} trackColor={{ true: colors.accent }} />
+        <Switch accessibilityLabel="Sleep mode, destination only" value={alertMode === 'destination-only'} onValueChange={(sleep) => setAlertModeOverride(sleep ? 'destination-only' : 'every-stop')} trackColor={{ false: colors.switchOffTrack, true: colors.accent }} thumbColor={colors.switchThumb} />
       </View>
 
       <PrimaryButton title={starting ? 'Starting trip…' : 'Start destination alarm'} onPress={() => void startTrip()} disabled={!app.ready || !journey || starting} />

@@ -8,6 +8,7 @@ export interface TomTomPlaceSuggestion {
   type: string;
   title: string;
   subtitles: string[];
+  distanceInMeters?: number;
 }
 
 interface TomTomPosition {
@@ -71,6 +72,49 @@ export async function suggestPlaces(query: string, sessionId: string, signal?: A
       && candidate.type !== 'discoverAction'
       && typeof candidate.title === 'string';
   }).map((result) => ({ ...result, subtitles: Array.isArray(result.subtitles) ? result.subtitles : [] }));
+}
+
+export async function discoverNearbyPlaces(
+  kind: DestinationKind,
+  origin: { latitude: number; longitude: number },
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<TomTomPlaceSuggestion[]> {
+  if (kind === 'rail-station') return [];
+  const headers = {
+    ...searchHeaders(sessionId),
+    Attributes: 'results(id,type,title,subtitles,position,distanceInMeters)',
+  };
+  const radiusInMeters = 5000;
+  const response = await fetch(`${SEARCH_ROOT}/discover`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      query: kind === 'bus-dropoff' ? 'bus station' : '',
+      origin: { type: 'point', coordinates: [origin.longitude, origin.latitude] },
+      maxResults: 8,
+      filters: {
+        types: ['poi'],
+        countryCodesIso2: ['PH'],
+        geometry: { type: 'circle', center: [origin.longitude, origin.latitude], radiusInMeters },
+      },
+    }),
+    signal,
+  });
+  if (!response.ok) throw errorForStatus(response.status);
+  const body = await response.json() as { results?: unknown };
+  if (!Array.isArray(body.results)) return [];
+  return body.results.filter((result): result is TomTomPlaceSuggestion => {
+    if (!result || typeof result !== 'object') return false;
+    const candidate = result as Partial<TomTomPlaceSuggestion>;
+    return typeof candidate.id === 'string'
+      && candidate.type === 'poi'
+      && typeof candidate.title === 'string';
+  }).map((result) => ({
+    ...result,
+    subtitles: Array.isArray(result.subtitles) ? result.subtitles : [],
+    ...(Number.isFinite(result.distanceInMeters) ? { distanceInMeters: result.distanceInMeters } : {}),
+  }));
 }
 
 const detailsTypeBySuggestionType: Record<string, string | undefined> = {

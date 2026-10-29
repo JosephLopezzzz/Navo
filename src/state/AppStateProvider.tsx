@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { AppState } from 'react-native';
-import { defaultSettings, readAppState, updateAppState, type StoredAppState } from '../services/storage';
+import { defaultFirstRunState, defaultSettings, readAppState, updateAppState, type StoredAppState } from '../services/storage';
 
 interface AppStateContextValue extends StoredAppState {
   ready: boolean;
@@ -77,13 +77,14 @@ export function AppStateProvider({ children }: PropsWithChildren) {
   }, [hasActiveLocationWork, refreshState]);
 
   const value = useMemo<AppStateContextValue>(() => ({
-    schemaVersion: 2,
+    schemaVersion: 3,
     activeTrip: state?.activeTrip ?? null,
     activeRoute: state?.activeRoute ?? null,
     customBusRoutes: state?.customBusRoutes ?? [],
     destinations: state?.destinations ?? [],
     destinationAlarms: state?.destinationAlarms ?? [],
     settings: state?.settings ?? defaultSettings,
+    firstRun: state?.firstRun ?? defaultFirstRunState,
     lastLocationAt: state?.lastLocationAt ?? null,
     lastLocation: state?.lastLocation ?? null,
     lastLocationAccuracyM: state?.lastLocationAccuracyM ?? null,

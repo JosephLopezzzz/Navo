@@ -1,4 +1,5 @@
 import { useAppState } from '../state/AppStateProvider';
+import { useColorScheme } from 'react-native';
 
 export const brand = {
   midnight: '#07182F',
@@ -30,6 +31,8 @@ const light = {
   danger: '#A12D36',
   dangerSoft: '#FCEBED',
   onAccent: '#FFFFFF',
+  switchOffTrack: '#66788D',
+  switchThumb: '#F7FAFF',
 };
 
 const dark = {
@@ -52,13 +55,19 @@ const dark = {
   danger: '#FFB3B8',
   dangerSoft: '#3B2028',
   onAccent: '#07182F',
+  switchOffTrack: '#7F93AB',
+  switchThumb: '#F7FAFF',
 };
 
 export type NavoColors = Record<Exclude<keyof typeof light, 'isDark'>, string> & { isDark: boolean };
 
 export function useNavoColors(): NavoColors {
   const { settings } = useAppState();
-  return settings.appearance === 'dark' ? dark : light;
+  const systemAppearance = useColorScheme();
+  const isDark = settings.appearance === 'system'
+    ? systemAppearance === 'dark'
+    : settings.appearance === 'dark';
+  return isDark ? dark : light;
 }
 
 export const spacing = { xs: 6, sm: 10, md: 16, lg: 24, xl: 32, xxl: 44 } as const;
