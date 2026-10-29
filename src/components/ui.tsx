@@ -1,15 +1,15 @@
-import type { PropsWithChildren, ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import type { PropsWithChildren, ReactNode, Ref } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { navoGradient, useNavoColors, spacing } from '../theme/colors';
 
-export function Screen({ children, scroll = true, tabBar = false }: PropsWithChildren<{ scroll?: boolean; tabBar?: boolean }>) {
+export function Screen({ children, scroll = true, tabBar = false, scrollRef }: PropsWithChildren<{ scroll?: boolean; tabBar?: boolean; scrollRef?: Ref<ScrollViewInstance> }>) {
   const colors = useNavoColors();
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       {scroll ? (
-        <ScrollView contentContainerStyle={[styles.content, tabBar && styles.tabContent]} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} contentContainerStyle={[styles.content, tabBar && styles.tabContent]} keyboardShouldPersistTaps="handled">
           {children}
         </ScrollView>
       ) : <View style={styles.content}>{children}</View>}

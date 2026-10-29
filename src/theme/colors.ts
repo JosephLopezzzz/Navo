@@ -31,6 +31,8 @@ const light = {
   danger: '#A12D36',
   dangerSoft: '#FCEBED',
   onAccent: '#FFFFFF',
+  switchOffTrack: '#66788D',
+  switchThumb: '#F7FAFF',
 };
 
 const dark = {
@@ -53,6 +55,8 @@ const dark = {
   danger: '#FFB3B8',
   dangerSoft: '#3B2028',
   onAccent: '#07182F',
+  switchOffTrack: '#7F93AB',
+  switchThumb: '#F7FAFF',
 };
 
 export type NavoColors = Record<Exclude<keyof typeof light, 'isDark'>, string> & { isDark: boolean };

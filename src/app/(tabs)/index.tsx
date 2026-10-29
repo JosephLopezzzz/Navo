@@ -11,6 +11,7 @@ import { beginBackgroundLocation, stopBackgroundLocationIfIdle } from '../../ser
 import { createPlacesSearchSessionId } from '../../services/tomtom';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
+import { GuideTarget } from '../../components/guide/GuideTargets';
 
 function destinationType(destination: SavedDestination): string {
   if (destination.kind === 'rail-station') return 'Rail';
@@ -118,7 +119,7 @@ export default function RideHomeScreen() {
     ]);
   };
 
-  const openPicker = () => router.push({ pathname: '/destination/pick', params: { kind: 'rail-station' } });
+  const openPicker = () => router.push({ pathname: '/destination/pick', params: { kind: app.firstRun.preferences.preferredMode } });
   const dismissNotice = () => {
     setActionProblem(null);
     void app.updateState({ settings: { ...app.settings, locationNoticeDismissed: true } }).catch(() => {
@@ -133,6 +134,7 @@ export default function RideHomeScreen() {
           <NavoMark size={34} />
           <Text style={[styles.wordmark, { color: colors.ink }]}>Navo</Text>
         </View>
+        {app.firstRun.preferences.displayName ? <Text style={[styles.greeting, { color: colors.muted }]}>Hi, {app.firstRun.preferences.displayName.trim().split(/\s+/)[0]}</Text> : null}
       </View>
 
       <View style={styles.titleRow}>
@@ -164,10 +166,12 @@ export default function RideHomeScreen() {
           </View>
           <Text style={[styles.emptyTitle, { color: colors.ink }]}>No alarms yet</Text>
           <Subtle style={styles.emptyCopy}>Add a stop to get alerted nearby.</Subtle>
-          <Pressable accessibilityRole="button" onPress={openPicker} style={[styles.primaryAction, { backgroundColor: colors.accent }]}>
-            <Feather name="plus" size={17} color={colors.onAccent} />
-            <Text style={[styles.primaryActionText, { color: colors.onAccent }]}>Add alarm</Text>
-          </Pressable>
+          <GuideTarget id="add-alarm" style={styles.addAlarmTarget}>
+            <Pressable accessibilityRole="button" onPress={openPicker} style={[styles.primaryAction, { backgroundColor: colors.accent }]}>
+              <Feather name="plus" size={17} color={colors.onAccent} />
+              <Text style={[styles.primaryActionText, { color: colors.onAccent }]}>Add alarm</Text>
+            </Pressable>
+          </GuideTarget>
         </View>
       ) : (
         <View style={styles.alarmList}>
@@ -203,8 +207,8 @@ export default function RideHomeScreen() {
                         accessibilityHint="Starts or stops destination location monitoring."
                         value={Boolean(alarm?.enabled)}
                         onValueChange={(enabled) => alarm && void toggleAlarm(alarm, enabled)}
-                        trackColor={{ false: colors.line, true: colors.accent }}
-                        thumbColor={colors.surface}
+                        trackColor={{ false: colors.switchOffTrack, true: colors.accent }}
+                        thumbColor={colors.switchThumb}
                       />
                     )}
                     <Pressable
@@ -228,10 +232,12 @@ export default function RideHomeScreen() {
             );
           })}
 
-          <Pressable accessibilityRole="button" onPress={openPicker} style={[styles.addButton, { borderColor: colors.line }]}>
-            <Feather name="plus" size={17} color={colors.accent} />
-            <Text style={[styles.addButtonText, { color: colors.ink }]}>Add alarm</Text>
-          </Pressable>
+          <GuideTarget id="add-alarm" style={styles.addAlarmTarget}>
+            <Pressable accessibilityRole="button" onPress={openPicker} style={[styles.addButton, { borderColor: colors.line }]}>
+              <Feather name="plus" size={17} color={colors.accent} />
+              <Text style={[styles.addButtonText, { color: colors.ink }]}>Add alarm</Text>
+            </Pressable>
+          </GuideTarget>
         </View>
       )}
 
@@ -254,9 +260,11 @@ export default function RideHomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  brandRow: { minHeight: 38, justifyContent: 'center' },
+  addAlarmTarget: { width: '100%' },
+  brandRow: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandName: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   wordmark: { fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
+  greeting: { fontSize: 13, fontWeight: '600' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   count: { fontSize: 13, fontWeight: '600' },
   tripCard: { minHeight: 62, borderRadius: 14, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },

@@ -61,8 +61,18 @@ export default function SettingsScreen() {
     void Linking.openSettings().catch(() => setStatusProblem('Phone settings could not be opened.'));
   };
 
-  const openLegalPage = (page: 'privacy' | 'terms' | 'location-safety' | 'map-data') => {
+  const openLegalPage = (page: 'privacy' | 'terms' | 'location-safety' | 'map-data' | 'all') => {
     router.push({ pathname: '/legal/[page]', params: { page } });
+  };
+
+  const replayGuide = async () => {
+    setStatusProblem(null);
+    try {
+      router.replace('/(tabs)');
+      await app.updateState({ firstRun: { ...app.firstRun, guideCompleted: false } });
+    } catch {
+      setStatusProblem('Navo could not restart the guide. Try again.');
+    }
   };
 
   const locationWorkActive = Boolean(app.activeTrip?.status === 'active' || app.destinationAlarms.some((alarm) => alarm.enabled));
@@ -99,8 +109,8 @@ export default function SettingsScreen() {
             accessibilityHint="Turn off to receive alerts at each upcoming route stop."
             value={app.settings.sleepMode}
             onValueChange={(sleepMode) => updateSettings({ sleepMode })}
-            trackColor={{ false: colors.line, true: colors.accent }}
-            thumbColor={colors.surface}
+            trackColor={{ false: colors.switchOffTrack, true: colors.accent }}
+            thumbColor={colors.switchThumb}
           />
         </View>
       </View>
@@ -160,11 +170,16 @@ export default function SettingsScreen() {
       <Divider />
 
       <View style={styles.section}>
+        <SectionHeading title="Personalization & help" />
+        <LegalRow title="Travel preferences" detail="Update your main mode and preferred rail line" onPress={() => router.push('/preferences')} />
+        <LegalRow title="Replay the in-app guide" detail="Highlights the main Navo controls" onPress={() => void replayGuide()} />
+      </View>
+
+      <Divider />
+
+      <View style={styles.section}>
         <SectionHeading title="Privacy & legal" />
-        <LegalRow title="Privacy policy" detail="Data stored here and sent to providers" onPress={() => openLegalPage('privacy')} />
-        <LegalRow title="Terms of use" onPress={() => openLegalPage('terms')} />
-        <LegalRow title="Location & safety" detail="How location alarms can be affected" onPress={() => openLegalPage('location-safety')} />
-        <LegalRow title="Map data & licenses" detail="Provider credits and map licenses" onPress={() => openLegalPage('map-data')} />
+        <LegalRow title="Read all Privacy & Legal information" detail="Privacy, terms, location safety, and map licenses" onPress={() => openLegalPage('all')} />
       </View>
 
       <Divider />

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SQLite from 'expo-sqlite';
-import type { DestinationAlarm, SavedDestination, TransitRoute, Trip } from '../domain/models';
+import type { DestinationAlarm, DestinationKind, SavedDestination, TransitRoute, Trip } from '../domain/models';
 
 const STORAGE_KEY = 'navo:state:v1';
 const DATABASE_NAME = 'navo-state.db';
@@ -13,14 +13,27 @@ export interface AppSettings {
   appearance: 'system' | 'light' | 'dark';
   locationNoticeDismissed: boolean;
 }
+export interface OnboardingPreferences {
+  displayName: string;
+  useFor: 'sleep' | 'focus' | 'both';
+  preferredMode: DestinationKind;
+  preferredRailLineId: string;
+}
+export interface FirstRunState {
+  legalAcknowledgement: { version: string; acknowledgedAt: string } | null;
+  onboardingComplete: boolean;
+  preferences: OnboardingPreferences;
+  guideCompleted: boolean;
+}
 export interface StoredAppState {
-  schemaVersion: 2;
+  schemaVersion: 3;
   activeTrip: Trip | null;
   activeRoute: TransitRoute | null;
   customBusRoutes: TransitRoute[];
   destinations: SavedDestination[];
   destinationAlarms: DestinationAlarm[];
   settings: AppSettings;
+  firstRun: FirstRunState;
   lastLocationAt: number | null;
   lastLocation: { latitude: number; longitude: number } | null;
   lastLocationAccuracyM: number | null;
@@ -35,14 +48,27 @@ export const defaultSettings: AppSettings = {
   appearance: 'light',
   locationNoticeDismissed: false,
 };
+export const defaultOnboardingPreferences: OnboardingPreferences = {
+  displayName: '',
+  useFor: 'both',
+  preferredMode: 'rail-station',
+  preferredRailLineId: 'lrt-1',
+};
+export const defaultFirstRunState: FirstRunState = {
+  legalAcknowledgement: null,
+  onboardingComplete: false,
+  preferences: defaultOnboardingPreferences,
+  guideCompleted: false,
+};
 export const defaultAppState: StoredAppState = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   activeTrip: null,
   activeRoute: null,
   customBusRoutes: [],
   destinations: [],
   destinationAlarms: [],
   settings: defaultSettings,
+  firstRun: defaultFirstRunState,
   lastLocationAt: null, lastLocation: null, lastLocationAccuracyM: null, locationProblem: null, lastTripNotice: null,
 };
 
@@ -52,7 +78,7 @@ export function normalizeAppState(value: unknown): StoredAppState {
   return {
     ...defaultAppState,
     ...parsed,
-    schemaVersion: 2,
+    schemaVersion: 3,
     activeTrip: parsed.activeTrip ?? null,
     activeRoute: parsed.activeRoute ?? null,
     customBusRoutes: Array.isArray(parsed.customBusRoutes) ? parsed.customBusRoutes : [],
@@ -65,6 +91,35 @@ export function normalizeAppState(value: unknown): StoredAppState {
         ? 'dark'
         : parsed.settings?.appearance === 'system' ? 'system' : 'light',
       locationNoticeDismissed: parsed.settings?.locationNoticeDismissed === true,
+    },
+    firstRun: {
+      ...defaultFirstRunState,
+      ...parsed.firstRun,
+      legalAcknowledgement: parsed.firstRun?.legalAcknowledgement
+        && typeof parsed.firstRun.legalAcknowledgement.version === 'string'
+        && typeof parsed.firstRun.legalAcknowledgement.acknowledgedAt === 'string'
+        && parsed.firstRun.legalAcknowledgement.acknowledgedAt.length > 0
+        ? parsed.firstRun.legalAcknowledgement
+        : null,
+      onboardingComplete: parsed.firstRun?.onboardingComplete === true,
+      guideCompleted: parsed.firstRun?.guideCompleted === true,
+      preferences: {
+        ...defaultOnboardingPreferences,
+        ...parsed.firstRun?.preferences,
+        displayName: typeof parsed.firstRun?.preferences?.displayName === 'string'
+          ? parsed.firstRun.preferences.displayName.slice(0, 48)
+          : '',
+        useFor: parsed.firstRun?.preferences?.useFor === 'sleep' || parsed.firstRun?.preferences?.useFor === 'focus'
+          ? parsed.firstRun.preferences.useFor
+          : 'both',
+        preferredMode: parsed.firstRun?.preferences?.preferredMode === 'bus-dropoff'
+          || parsed.firstRun?.preferences?.preferredMode === 'place'
+          ? parsed.firstRun.preferences.preferredMode
+          : 'rail-station',
+        preferredRailLineId: ['lrt-1', 'lrt-2', 'mrt-3'].includes(parsed.firstRun?.preferences?.preferredRailLineId ?? '')
+          ? parsed.firstRun!.preferences!.preferredRailLineId
+          : 'lrt-1',
+      },
     },
   };
 }

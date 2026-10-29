@@ -1,7 +1,9 @@
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavoColors } from '../../theme/colors';
+import { GuideTarget } from '../../components/guide/GuideTargets';
 
 export default function TabLayout() {
   const colors = useNavoColors();
@@ -12,7 +14,6 @@ export default function TabLayout() {
       tabBarActiveTintColor: colors.accent,
       tabBarInactiveTintColor: colors.muted,
       tabBarHideOnKeyboard: true,
-      tabBarActiveBackgroundColor: colors.accentSoft,
       tabBarStyle: {
         position: 'absolute',
         left: 16,
@@ -32,12 +33,41 @@ export default function TabLayout() {
         shadowRadius: 14,
         shadowOffset: { width: 0, height: 5 },
       },
-      tabBarItemStyle: { marginHorizontal: 4, borderRadius: 24 },
+      tabBarItemStyle: { marginHorizontal: 4, borderRadius: 24, overflow: 'hidden' },
       tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
     }}>
-      <Tabs.Screen name="index" options={{ title: 'Alarms', tabBarAccessibilityLabel: 'Destination alarms', tabBarIcon: ({ focused, size }) => <Feather name="navigation" color={focused ? colors.accent : colors.muted} size={size} /> }} />
-      <Tabs.Screen name="routes" options={{ title: 'Routes', tabBarAccessibilityLabel: 'Routes', tabBarIcon: ({ focused, size }) => <Feather name="map" color={focused ? colors.accent : colors.muted} size={size} /> }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings', tabBarAccessibilityLabel: 'Settings', tabBarIcon: ({ focused, size }) => <Feather name="sliders" color={focused ? colors.accent : colors.muted} size={size} /> }} />
+      <Tabs.Screen name="index" options={{
+        title: 'Alarms',
+        tabBarAccessibilityLabel: 'Destination alarms',
+        tabBarButton: (props) => {
+          const { children, style, href: _href, ref: _ref, ...buttonProps } = props;
+          return <GuideTarget id="alarms-tab" style={styles.buttonTarget}><Pressable {...buttonProps} style={style}>{children}</Pressable></GuideTarget>;
+        },
+        tabBarIcon: ({ focused, size }) => <View style={[styles.iconFrame, { backgroundColor: focused ? colors.accentSoft : 'transparent' }]}><Feather name="navigation" color={focused ? colors.accent : colors.muted} size={size} /></View>,
+      }} />
+      <Tabs.Screen name="routes" options={{
+        title: 'Routes',
+        tabBarAccessibilityLabel: 'Routes',
+        tabBarButton: (props) => {
+          const { children, style, href: _href, ref: _ref, ...buttonProps } = props;
+          return <GuideTarget id="routes-tab" style={styles.buttonTarget}><Pressable {...buttonProps} style={style}>{children}</Pressable></GuideTarget>;
+        },
+        tabBarIcon: ({ focused, size }) => <View style={[styles.iconFrame, { backgroundColor: focused ? colors.accentSoft : 'transparent' }]}><Feather name="map" color={focused ? colors.accent : colors.muted} size={size} /></View>,
+      }} />
+      <Tabs.Screen name="settings" options={{
+        title: 'Settings',
+        tabBarAccessibilityLabel: 'Settings',
+        tabBarButton: (props) => {
+          const { children, style, href: _href, ref: _ref, ...buttonProps } = props;
+          return <GuideTarget id="settings-tab" style={styles.buttonTarget}><Pressable {...buttonProps} style={style}>{children}</Pressable></GuideTarget>;
+        },
+        tabBarIcon: ({ focused, size }) => <View style={[styles.iconFrame, { backgroundColor: focused ? colors.accentSoft : 'transparent' }]}><Feather name="sliders" color={focused ? colors.accent : colors.muted} size={size} /></View>,
+      }} />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  buttonTarget: { flex: 1 },
+  iconFrame: { width: 36, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+});
