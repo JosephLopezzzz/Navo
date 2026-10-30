@@ -1,53 +1,23 @@
-import { useCallback, useState, type ReactNode } from 'react';
-import { Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import { useFocusEffect, router } from 'expo-router';
+import { useCallback, useState, type PropsWithChildren } from 'react';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import Constants from 'expo-constants';
-import * as Location from 'expo-location';
-import * as Notifications from 'expo-notifications';
 import { DataSeal, Divider, Screen, ScreenTitle, Subtle } from '../../components/ui';
+import { NavoMark } from '../../components/NavoMark';
+import { useGuideControls } from '../../components/guide/GuideTargets';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
-
-type PermissionState = 'checking' | 'allowed' | 'approximate' | 'off';
-interface PermissionSummary { notifications: PermissionState; foreground: PermissionState; precise: PermissionState; background: PermissionState }
-async function readPermissionSummary(): Promise<PermissionSummary> {
-  const [notifications, foreground, background] = await Promise.all([
-    Notifications.getPermissionsAsync(), Location.getForegroundPermissionsAsync(), Location.getBackgroundPermissionsAsync(),
-  ]);
-  const precision = foreground.android?.accuracy === 'fine' || foreground.ios?.accuracy === 'full'
-    ? 'allowed'
-    : 'approximate';
-  return {
-    notifications: notifications.granted ? 'allowed' : 'off',
-    foreground: foreground.granted ? 'allowed' : 'off',
-    precise: foreground.granted ? precision : 'off',
-    background: background.granted ? 'allowed' : 'off',
-  };
-}
 
 export default function SettingsScreen() {
   const colors = useNavoColors();
   const app = useAppState();
-  const [permissions, setPermissions] = useState<PermissionSummary | null>(null);
+  const guide = useGuideControls();
   const [statusProblem, setStatusProblem] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const refreshPermissions = useCallback(async () => {
-    setRefreshing(true);
-    setStatusProblem(null);
-    try {
-      setPermissions(await readPermissionSummary());
-    } catch {
-      setStatusProblem('Permission status could not be read. Check your phone settings.');
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
 
   useFocusEffect(useCallback(() => {
-    void refreshPermissions();
-  }, [refreshPermissions]));
+    setStatusProblem(null);
+  }, []));
 
   const updateSettings = (patch: Partial<typeof app.settings>) => {
     setStatusProblem(null);
@@ -56,38 +26,23 @@ export default function SettingsScreen() {
     });
   };
 
-  const openSystemSettings = () => {
-    setStatusProblem(null);
-    void Linking.openSettings().catch(() => setStatusProblem('Phone settings could not be opened.'));
+  const openLegalPage = () => router.push({ pathname: '/legal/[page]', params: { page: 'all' } });
+  const replayGuide = () => {
+    router.replace('/(tabs)');
+    setTimeout(guide.startGuide, 160);
   };
 
-  const openLegalPage = (page: 'privacy' | 'terms' | 'location-safety' | 'map-data' | 'all') => {
-    router.push({ pathname: '/legal/[page]', params: { page } });
-  };
-
-  const replayGuide = async () => {
-    setStatusProblem(null);
-    try {
-      router.replace('/(tabs)');
-      await app.updateState({ firstRun: { ...app.firstRun, guideCompleted: false } });
-    } catch {
-      setStatusProblem('Navo could not restart the guide. Try again.');
-    }
-  };
-
-  const locationWorkActive = Boolean(app.activeTrip?.status === 'active' || app.destinationAlarms.some((alarm) => alarm.enabled));
   const appVersion = Constants.expoConfig?.version ?? 'Unavailable';
 
   return (
     <Screen tabBar>
-      <View style={styles.header}>
-        <View style={[styles.headerIcon, { backgroundColor: colors.accentSoft }]}>
-          <Feather name="sliders" size={18} color={colors.accent} />
-        </View>
-        <ScreenTitle>Settings</ScreenTitle>
+      <View style={styles.brandRow}>
+        <View style={styles.brandName}><NavoMark size={32} /><Text style={[styles.wordmark, { color: colors.ink }]}>Navo</Text></View>
+        {app.firstRun.preferences.displayName ? <Text style={[styles.greeting, { color: colors.muted }]}>Hi, {app.firstRun.preferences.displayName.trim().split(/\s+/)[0]}</Text> : null}
       </View>
+      <ScreenTitle>Settings</ScreenTitle>
 
-      {app.storageProblem && (
+      {app.storageProblem ? (
         <View style={[styles.storageNotice, { backgroundColor: colors.warningSoft }]}>
           <DataSeal label="Saved data unavailable" tone="warning" />
           <Subtle>{app.storageProblem}</Subtle>
@@ -95,10 +50,28 @@ export default function SettingsScreen() {
             <Text style={[styles.secondaryActionText, { color: colors.ink }]}>Retry saved data</Text>
           </Pressable>
         </View>
-      )}
+      ) : null}
 
-      <View style={styles.section}>
-        <SectionHeading title="Alerts" />
+      <SettingsGroup title="PERSONALIZE">
+        <View style={styles.settingBlock}>
+          <View style={styles.rowHeading}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}><Feather name="moon" size={15} color={colors.accent} /></View>
+            <View style={styles.rowCopy}>
+              <Text style={[styles.settingTitle, { color: colors.ink }]}>Appearance</Text>
+              <Text style={[styles.settingDetail, { color: colors.muted }]}>Arctic Pearl is the default. Obsidian is ready for night.</Text>
+            </View>
+          </View>
+          <View style={[styles.appearanceOptions, { backgroundColor: colors.raised }]}>
+            <AppearanceOption label="System" selected={app.settings.appearance === 'system'} onPress={() => updateSettings({ appearance: 'system' })} />
+            <AppearanceOption label="Light" selected={app.settings.appearance === 'light'} onPress={() => updateSettings({ appearance: 'light' })} />
+            <AppearanceOption label="Dark" selected={app.settings.appearance === 'dark'} onPress={() => updateSettings({ appearance: 'dark' })} />
+          </View>
+        </View>
+        <Divider />
+        <SettingLink icon="sliders" title="Your preferences" detail="Name, commute type, and preferred rail line" onPress={() => router.push('/preferences')} />
+      </SettingsGroup>
+
+      <SettingsGroup title="ALERTS & LOCATION">
         <View style={styles.settingRow}>
           <View style={styles.settingCopy}>
             <Text style={[styles.settingTitle, { color: colors.ink }]}>Sleep mode</Text>
@@ -113,106 +86,57 @@ export default function SettingsScreen() {
             thumbColor={colors.switchThumb}
           />
         </View>
-      </View>
-
-      <Divider />
-
-      <View style={styles.section}>
-        <SectionHeading title="Location & permissions" accessory={(
-          <Pressable accessibilityRole="button" accessibilityLabel="Refresh permission status" onPress={() => void refreshPermissions()} style={styles.refreshButton}>
-            <Feather name={refreshing ? 'loader' : 'refresh-cw'} size={16} color={colors.accent} />
-          </Pressable>
-        )} />
-        <PermissionRow label="Notifications" state={permissions?.notifications ?? 'checking'} />
-        <PermissionRow label="Location while using Navo" state={permissions?.foreground ?? 'checking'} />
-        <PermissionRow label="Precise location" state={permissions?.precise ?? 'checking'} />
-        <PermissionRow label="Background location" state={permissions?.background ?? 'checking'} />
-        <Pressable accessibilityRole="button" onPress={openSystemSettings} style={[styles.permissionAction, { borderColor: colors.line }]}>
-          <Feather name="settings" size={16} color={colors.accent} />
-          <Text style={[styles.permissionActionText, { color: colors.ink }]}>Manage permissions</Text>
-          <Feather name="external-link" size={15} color={colors.muted} />
-        </Pressable>
-
+        <Divider />
         <View style={styles.samplingBlock}>
           <View style={styles.samplingHeading}>
             <Text style={[styles.settingTitle, { color: colors.ink }]}>Location sampling</Text>
-            <Text style={[styles.settingDetail, { color: colors.muted }]}>{locationWorkActive ? 'Next session' : 'Next alarm or trip'}</Text>
+            <Text style={[styles.settingDetail, { color: colors.muted }]}>{app.activeTrip?.status === 'active' || app.destinationAlarms.some((alarm) => alarm.enabled) ? 'Next session' : 'Next alarm or trip'}</Text>
           </View>
           <View style={[styles.samplingOptions, { backgroundColor: colors.raised }]}>
-            <SamplingOption
-              label="Balanced"
-              detail="20 sec · 75 m"
-              selected={app.settings.updateIntervalMs === 20_000}
-              onPress={() => updateSettings({ updateIntervalMs: 20_000, updateDistanceM: 75 })}
-            />
-            <SamplingOption
-              label="Battery saver"
-              detail="30 sec · 150 m"
-              selected={app.settings.updateIntervalMs === 30_000}
-              onPress={() => updateSettings({ updateIntervalMs: 30_000, updateDistanceM: 150 })}
-            />
+            <SamplingOption label="Balanced" detail="20 sec · 75 m" selected={app.settings.updateIntervalMs === 20_000} onPress={() => updateSettings({ updateIntervalMs: 20_000, updateDistanceM: 75 })} />
+            <SamplingOption label="Battery saver" detail="30 sec · 150 m" selected={app.settings.updateIntervalMs === 30_000} onPress={() => updateSettings({ updateIntervalMs: 30_000, updateDistanceM: 150 })} />
           </View>
         </View>
-      </View>
+      </SettingsGroup>
 
-      <Divider />
-
-      <View style={styles.section}>
-        <SectionHeading title="Appearance" />
-        <Text style={[styles.sectionNote, { color: colors.muted }]}>Arctic Pearl is the default. Obsidian follows your choice.</Text>
-        <View style={[styles.appearanceOptions, { backgroundColor: colors.raised }]}>
-          <AppearanceOption label="System" selected={app.settings.appearance === 'system'} onPress={() => updateSettings({ appearance: 'system' })} />
-          <AppearanceOption label="Light" selected={app.settings.appearance === 'light'} onPress={() => updateSettings({ appearance: 'light' })} />
-          <AppearanceOption label="Dark" selected={app.settings.appearance === 'dark'} onPress={() => updateSettings({ appearance: 'dark' })} />
-        </View>
-      </View>
-
-      <Divider />
-
-      <View style={styles.section}>
-        <SectionHeading title="Personalization & help" />
-        <LegalRow title="Travel preferences" detail="Update your main mode and preferred rail line" onPress={() => router.push('/preferences')} />
-        <LegalRow title="Replay the in-app guide" detail="Highlights the main Navo controls" onPress={() => void replayGuide()} />
-      </View>
-
-      <Divider />
-
-      <View style={styles.section}>
-        <SectionHeading title="Privacy & legal" />
-        <LegalRow title="Read all Privacy & Legal information" detail="Privacy, terms, location safety, and map licenses" onPress={() => openLegalPage('all')} />
-      </View>
-
-      <Divider />
+      <SettingsGroup title="HELP & PERMISSIONS">
+        <SettingLink icon="help-circle" title="Replay the app guide" detail="A short tour of alarms, routes, and settings" onPress={replayGuide} />
+        <Divider />
+        <SettingLink icon="shield" title="Alarm permissions" detail="Location and notification access" onPress={() => router.push('/permissions')} />
+        <Divider />
+        <SettingLink icon="file-text" title="Privacy & Legal" detail="Privacy, terms, location safety, and map licenses" onPress={openLegalPage} />
+      </SettingsGroup>
 
       <View style={styles.aboutRow}>
-        <View style={styles.aboutMark}><Text style={[styles.aboutName, { color: colors.ink }]}>About Navo</Text><Text style={[styles.aboutDetail, { color: colors.muted }]}>A commute alarm for your next stop.</Text></View>
+        <View style={styles.aboutCopy}><Text style={[styles.aboutName, { color: colors.ink }]}>About Navo</Text><Text style={[styles.aboutDetail, { color: colors.muted }]}>A commute alarm for your next stop.</Text></View>
         <Text style={[styles.version, { color: colors.muted }]}>v{appVersion}</Text>
       </View>
-
-      {statusProblem && <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{statusProblem}</Text>}
+      {statusProblem ? <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{statusProblem}</Text> : null}
     </Screen>
   );
 }
 
-function SectionHeading({ title, accessory }: { title: string; accessory?: ReactNode }) {
+function SettingsGroup({ title, children }: PropsWithChildren<{ title: string }>) {
   const colors = useNavoColors();
   return (
-    <View style={styles.sectionHeading}>
-      <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.ink }]}>{title}</Text>
-      {accessory}
+    <View style={styles.group}>
+      <Text accessibilityRole="header" style={[styles.groupTitle, { color: colors.muted }]}>{title}</Text>
+      <View style={[styles.groupCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>{children}</View>
     </View>
   );
 }
 
-function PermissionRow({ label, state }: { label: string; state: PermissionState }) {
+function SettingLink({ icon, title, detail, onPress }: { icon: keyof typeof Feather.glyphMap; title: string; detail: string; onPress: () => void }) {
   const colors = useNavoColors();
-  const labelForState = state === 'checking' ? 'Checking' : state === 'allowed' ? 'Allowed' : state === 'approximate' ? 'Approximate' : 'Off';
-  const tone = state === 'checking' ? 'neutral' : state === 'allowed' ? 'success' : 'warning';
   return (
-    <View style={styles.permissionRow}>
-      <Text style={[styles.settingTitle, { color: colors.ink }]}>{label}</Text>
-      <DataSeal label={labelForState} tone={tone} />
-    </View>
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingLink, { opacity: pressed ? 0.75 : 1 }]}>
+      <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}><Feather name={icon} size={15} color={colors.accent} /></View>
+      <View style={styles.rowCopy}>
+        <Text style={[styles.settingTitle, { color: colors.ink }]}>{title}</Text>
+        <Text style={[styles.settingDetail, { color: colors.muted }]}>{detail}</Text>
+      </View>
+      <Feather name="chevron-right" size={17} color={colors.quiet} />
+    </Pressable>
   );
 }
 
@@ -235,51 +159,38 @@ function AppearanceOption({ label, selected, onPress }: { label: string; selecte
   );
 }
 
-function LegalRow({ title, detail, onPress }: { title: string; detail?: string; onPress: () => void }) {
-  const colors = useNavoColors();
-  return (
-    <Pressable accessibilityRole="link" onPress={onPress} style={styles.legalRow}>
-      <View style={styles.legalCopy}>
-        <Text style={[styles.settingTitle, { color: colors.ink }]}>{title}</Text>
-        {detail && <Text style={[styles.settingDetail, { color: colors.muted }]}>{detail}</Text>}
-      </View>
-      <Feather name="chevron-right" size={18} color={colors.quiet} />
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  header: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
-  section: { gap: 10 },
+  brandRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  brandName: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  wordmark: { fontSize: 18, fontWeight: '700', letterSpacing: -0.35 },
+  greeting: { fontSize: 12, fontWeight: '600' },
   storageNotice: { gap: 9, padding: 12, borderRadius: 13 },
-  sectionHeading: { minHeight: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: 16, lineHeight: 22, fontWeight: '700', letterSpacing: -0.1 },
-  sectionNote: { fontSize: 13, lineHeight: 18 },
-  settingRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  group: { gap: 6 },
+  groupTitle: { fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.45, paddingHorizontal: 2 },
+  groupCard: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 11, overflow: 'hidden' },
+  settingBlock: { gap: 9, paddingVertical: 11 },
+  rowHeading: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  rowIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
+  rowCopy: { flex: 1, gap: 2 },
+  settingTitle: { fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  settingDetail: { fontSize: 10, lineHeight: 14 },
+  appearanceOptions: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 11 },
+  appearanceOption: { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
+  appearanceLabel: { fontSize: 12, fontWeight: '700' },
+  settingLink: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  settingRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   settingCopy: { flex: 1, gap: 3 },
-  settingTitle: { fontSize: 14, lineHeight: 19, fontWeight: '600' },
-  settingDetail: { fontSize: 12, lineHeight: 17 },
-  permissionRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  refreshButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  permissionAction: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 11, borderWidth: 1, borderRadius: 12 },
-  permissionActionText: { flex: 1, fontSize: 13, fontWeight: '600' },
-  samplingBlock: { gap: 6, paddingTop: 3 },
+  samplingBlock: { gap: 7, paddingVertical: 11 },
   samplingHeading: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-  samplingOptions: { flexDirection: 'row', gap: 5, padding: 4, borderRadius: 13 },
-  samplingOption: { flex: 1, minHeight: 50, justifyContent: 'center', gap: 2, paddingHorizontal: 8, borderRadius: 10 },
-  samplingLabel: { fontSize: 12, fontWeight: '700' },
-  optionDetail: { fontSize: 11 },
-  appearanceOptions: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 13 },
-  appearanceOption: { flex: 1, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
-  appearanceLabel: { fontSize: 13, fontWeight: '700' },
-  legalRow: { minHeight: 45, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  legalCopy: { flex: 1, gap: 2 },
-  aboutRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  aboutMark: { gap: 3 },
-  aboutName: { fontSize: 14, fontWeight: '700' },
-  aboutDetail: { fontSize: 12 },
-  version: { fontSize: 12, fontVariant: ['tabular-nums'] },
+  samplingOptions: { flexDirection: 'row', gap: 5, padding: 4, borderRadius: 11 },
+  samplingOption: { flex: 1, minHeight: 50, justifyContent: 'center', gap: 2, paddingHorizontal: 8, borderRadius: 9 },
+  samplingLabel: { fontSize: 11, fontWeight: '700' },
+  optionDetail: { fontSize: 10 },
+  aboutRow: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  aboutCopy: { gap: 3 },
+  aboutName: { fontSize: 13, fontWeight: '700' },
+  aboutDetail: { fontSize: 11 },
+  version: { fontSize: 11, fontVariant: ['tabular-nums'] },
   secondaryAction: { minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 11 },
   secondaryActionText: { fontSize: 13, fontWeight: '600' },
   problemText: { fontSize: 13, lineHeight: 19 },

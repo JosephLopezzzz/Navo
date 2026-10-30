@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Appearance, View } from 'react-native';
@@ -40,7 +40,17 @@ function RootNavigator() {
   const showLegalGate = app.ready && !legalAcknowledged;
   const showProfileSetup = app.ready && legalAcknowledged && !app.firstRun.onboardingComplete;
   const showApp = app.ready && legalAcknowledged && app.firstRun.onboardingComplete;
-  const showGuide = showApp && !app.firstRun.guideCompleted;
+  const statusRedirectTo = showLegalGate ? '/first-run/legal' : showProfileSetup ? '/first-run/profile' : '/(tabs)';
+  const legalRedirectTo = showFirstRunStatus ? '/first-run/status' : showProfileSetup ? '/first-run/profile' : '/(tabs)';
+  const profileRedirectTo = showFirstRunStatus ? '/first-run/status' : showLegalGate ? '/first-run/legal' : '/(tabs)';
+  const appRedirectTo = showFirstRunStatus ? '/first-run/status' : showLegalGate ? '/first-run/legal' : '/first-run/profile';
+  const mutateState = app.mutateState;
+  const finishGuide = useCallback(() => {
+    void mutateState((current) => ({
+      ...current,
+      firstRun: { ...current.firstRun, guideCompleted: true },
+    })).catch(() => undefined);
+  }, [mutateState]);
   useEffect(() => {
     if (!app.ready && !app.storageProblem) return;
     Appearance.setColorScheme(app.settings.appearance === 'system' ? 'auto' : app.settings.appearance);
@@ -53,7 +63,7 @@ function RootNavigator() {
   }, [app.ready]);
 
   return (
-    <GuideTargetsProvider>
+    <GuideTargetsProvider onGuideFinish={finishGuide}>
       <View style={{ flex: 1 }}>
         <StatusBar style={isLoadingAppearance || colors.isDark ? 'light' : 'dark'} animated />
         <Stack screenOptions={{
@@ -63,19 +73,21 @@ function RootNavigator() {
           headerTitleStyle: { color: colors.ink, fontWeight: '600' },
           headerShadowVisible: false,
         }}>
-          <Stack.Protected guard={showFirstRunStatus}>
+          <Stack.Protected guard={showFirstRunStatus} redirectTo={statusRedirectTo}>
             <Stack.Screen name="first-run/status" options={{ headerShown: false }} />
           </Stack.Protected>
-          <Stack.Protected guard={showLegalGate} redirectTo="/first-run/legal">
+          <Stack.Protected guard={showLegalGate} redirectTo={legalRedirectTo}>
             <Stack.Screen name="first-run/legal" options={{ headerShown: false, gestureEnabled: false }} />
           </Stack.Protected>
-          <Stack.Protected guard={showProfileSetup} redirectTo="/first-run/profile">
+          <Stack.Protected guard={showProfileSetup} redirectTo={profileRedirectTo}>
             <Stack.Screen name="first-run/profile" options={{ headerShown: false, gestureEnabled: false }} />
           </Stack.Protected>
-          <Stack.Protected guard={showApp} redirectTo="/(tabs)">
+          <Stack.Protected guard={showApp} redirectTo={appRedirectTo}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="destination/pick" options={{ title: 'Choose a destination', headerShown: false }} />
             <Stack.Screen name="destination/map" options={{ title: 'Pick on map', headerShown: false }} />
+            <Stack.Screen name="alarm/enable" options={{ title: 'Enable alarm', headerShown: false }} />
+            <Stack.Screen name="permissions" options={{ title: 'Alarm permissions', headerShown: false }} />
             <Stack.Screen name="legal/[page]" options={{ title: 'Navo information', headerShown: false }} />
             <Stack.Screen name="preferences" options={{ title: 'Recommendation preferences', headerShown: false }} />
             <Stack.Screen name="trip/setup" options={{ title: 'Choose your stops' }} />
@@ -83,9 +95,7 @@ function RootNavigator() {
             <Stack.Screen name="bus/new" options={{ title: 'Create a bus route' }} />
           </Stack.Protected>
         </Stack>
-        {showGuide ? <InAppGuide onFinish={() => {
-          void app.updateState({ firstRun: { ...app.firstRun, guideCompleted: true } }).catch(() => undefined);
-        }} /> : null}
+        <InAppGuide />
       </View>
     </GuideTargetsProvider>
   );

@@ -3,16 +3,19 @@ import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { navoGradient, useNavoColors, spacing } from '../theme/colors';
+import { useGuideControls } from './guide/GuideTargets';
 
-export function Screen({ children, scroll = true, tabBar = false, scrollRef }: PropsWithChildren<{ scroll?: boolean; tabBar?: boolean; scrollRef?: Ref<ScrollViewInstance> }>) {
+export function Screen({ children, scroll = true, tabBar = false, scrollRef, footer }: PropsWithChildren<{ scroll?: boolean; tabBar?: boolean; scrollRef?: Ref<ScrollViewInstance>; footer?: ReactNode }>) {
   const colors = useNavoColors();
+  const { refreshTargets } = useGuideControls();
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={footer ? ['top', 'bottom'] : ['top']}>
       {scroll ? (
-        <ScrollView ref={scrollRef} contentContainerStyle={[styles.content, tabBar && styles.tabContent]} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} contentContainerStyle={[styles.content, tabBar && styles.tabContent]} keyboardShouldPersistTaps="handled" onScroll={refreshTargets} scrollEventThrottle={100}>
           {children}
         </ScrollView>
       ) : <View style={styles.content}>{children}</View>}
+      {footer ? <View style={[styles.screenFooter, { borderTopColor: colors.line }]}>{footer}</View> : null}
     </SafeAreaView>
   );
 }
@@ -123,6 +126,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { paddingHorizontal: 20, paddingTop: spacing.md, paddingBottom: 40, gap: spacing.lg, flexGrow: 1 },
   tabContent: { paddingBottom: 132 },
+  screenFooter: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 10, gap: 8, borderTopWidth: StyleSheet.hairlineWidth },
   body: { fontSize: 16, lineHeight: 23 },
   subtle: { fontSize: 14, lineHeight: 20 },
   title: { fontSize: 26, fontWeight: '700', letterSpacing: -0.6, lineHeight: 32 },

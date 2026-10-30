@@ -1,12 +1,12 @@
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
-import { AndroidImportance } from 'expo-notifications';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import { evaluateLocationFix } from '../domain/trip-engine';
 import { evaluateDestinationAlarmFix } from '../domain/destination-alarm';
 import type { DestinationAlarmEvent, LocationFix, TripEvent } from '../domain/models';
 import { readAppState, updateAppState } from './storage';
+import { requestAlarmPermissions } from './alarm-permissions';
 
 export const LOCATION_TASK_NAME = 'navo-trip-location-v1';
 
@@ -140,21 +140,10 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 
 async function startLocationUpdates(settings: { updateDistanceM: number; updateIntervalMs: number }): Promise<void> {
   if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME)) return;
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('navo-trip', {
-      name: 'Navo trip alerts',
-      importance: AndroidImportance.HIGH,
-      vibrationPattern: [0, 250, 120, 250],
-      lightColor: '#0869A8',
-    });
-  }
-  const notificationPermission = await Notifications.requestPermissionsAsync();
-  if (!notificationPermission.granted) throw new Error('Allow notifications to receive stop alerts. You can still track progress manually.');
-
-  const foreground = await Location.requestForegroundPermissionsAsync();
-  if (!foreground.granted) throw new Error('Allow location while using Navo to start location tracking. You can still track progress manually.');
-  const background = await Location.requestBackgroundPermissionsAsync();
-  if (!background.granted) throw new Error('Background location is off. The trip can continue in manual mode, but Navo cannot check stops while closed.');
+  const permissions = await requestAlarmPermissions();
+  if (!permissions.notifications) throw new Error('Allow notifications to receive stop alerts. You can still track progress manually.');
+  if (!permissions.foreground) throw new Error('Allow location while using Navo to start location tracking. You can still track progress manually.');
+  if (!permissions.background) throw new Error('Background location is off. The trip can continue in manual mode, but Navo cannot check stops while closed.');
 
   const taskOptions: Location.LocationTaskOptions = {
     accuracy: Location.Accuracy.Balanced,

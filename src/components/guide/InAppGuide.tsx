@@ -1,69 +1,124 @@
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Feather } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useGuideTargets, type GuideTargetId } from './GuideTargets';
+import { useGuideControls, useGuideTargets, type GuideTargetId } from './GuideTargets';
 import { useNavoColors } from '../../theme/colors';
 
 const steps: { target: GuideTargetId; title: string; detail: string; icon: keyof typeof Feather.glyphMap }[] = [
-  { target: 'alarms-tab', title: 'Your destinations', detail: 'Saved stops and their alarm switches live on Alarms.', icon: 'navigation' },
-  { target: 'add-alarm', title: 'Add a stop', detail: 'Choose Rail, Bus, or Place. Rail starts with a line and station list.', icon: 'plus' },
-  { target: 'routes-tab', title: 'Plan a rail trip', detail: 'Routes lets you choose a line, boarding station, and destination.', icon: 'map' },
-  { target: 'settings-tab', title: 'Make it yours', detail: 'Settings includes appearance, permissions, preferences, and this guide.', icon: 'sliders' },
+  { target: 'saved-alarms', title: 'Your saved alarms', detail: 'Turn an alarm on when you travel. Your stops stay saved when it’s off.', icon: 'bell' },
+  { target: 'add-alarm', title: 'Add a new alarm', detail: 'Choose a rail station, bus stop, or place. You can save more than one.', icon: 'plus' },
+  { target: 'routes-tab', title: 'Plan a rail trip', detail: 'Open Routes to choose your line, boarding station, and destination.', icon: 'map' },
+  { target: 'settings-tab', title: 'Help is always here', detail: 'Change preferences or replay this guide from Settings → Help.', icon: 'help-circle' },
 ];
 
-export function InAppGuide({ onFinish }: { onFinish: () => void }) {
+export function InAppGuide() {
   const colors = useNavoColors();
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const targets = useGuideTargets();
-  const [index, setIndex] = useState(0);
+  const { visible, step: index, setStep, finishGuide, measureOverlay, overlayBounds } = useGuideControls();
+  const overlayRef = useRef<ViewInstance>(null);
+  const [cardSize, setCardSize] = useState({ width: 0, height: 0 });
   const step = steps[index]!;
-  const bounds = targets[step.target];
-  const hasBounds = Boolean(bounds && bounds.width > 0 && bounds.height > 0);
-  const cutout = bounds ? { x: bounds.x - 5, y: bounds.y - 5, width: bounds.width + 10, height: bounds.height + 10 } : null;
-  const cardHeight = 194;
-  const cardWidth = Math.min(screenWidth - 36, 440);
-  const cardLeft = (screenWidth - cardWidth) / 2;
-  const cardTop = cutout && cutout.y + cutout.height + cardHeight + 24 < screenHeight - insets.bottom
-    ? cutout.y + cutout.height + 14
-    : insets.top + 18;
+  const bounds = targets[step.target] ?? null;
+  const frame = overlayBounds ?? { x: 0, y: 0, width: screenWidth, height: screenHeight };
+  const targetLocal = useMemo(() => bounds ? ({
+    x: bounds.x - frame.x,
+    y: bounds.y - frame.y,
+    width: bounds.width,
+    height: bounds.height,
+  }) : null, [bounds, frame.x, frame.y]);
+  const cutout = useMemo(() => {
+    if (!targetLocal) return null;
+    const x = Math.max(4, targetLocal.x - 5);
+    const y = Math.max(4, targetLocal.y - 5);
+    const right = Math.min(frame.width - 4, targetLocal.x + targetLocal.width + 5);
+    const bottom = Math.min(frame.height - 4, targetLocal.y + targetLocal.height + 5);
+    if (right <= x || bottom <= y) return null;
+    return { x, y, width: right - x, height: bottom - y };
+  }, [frame.height, frame.width, targetLocal]);
+  const cardWidth = Math.min(Math.max(0, frame.width - 32), 420);
+  const cardHeight = cardSize.height || 224;
+  const cardLeft = Math.max(16, (frame.width - cardWidth) / 2);
+  const safeTop = Math.max(12, insets.top - frame.y + 8);
+  const safeBottom = frame.height - Math.max(12, screenHeight - insets.bottom - (frame.y + frame.height)) - 12;
+  const placement = useMemo(() => {
+    if (!cutout) return { top: Math.min(safeTop, Math.max(0, safeBottom - cardHeight)), above: false };
+    const belowTop = cutout.y + cutout.height + 14;
+    const aboveTop = cutout.y - cardHeight - 14;
+    if (belowTop + cardHeight <= safeBottom) return { top: belowTop, above: false };
+    if (aboveTop >= safeTop) return { top: aboveTop, above: true };
+    const belowRoom = safeBottom - belowTop;
+    const aboveRoom = cutout.y - 14 - safeTop;
+    const above = aboveRoom > belowRoom;
+    return {
+      top: above
+        ? Math.max(safeTop, Math.min(aboveTop, safeBottom - cardHeight))
+        : Math.max(safeTop, Math.min(belowTop, safeBottom - cardHeight)),
+      above,
+    };
+  }, [cardHeight, cutout, safeBottom, safeTop]);
+  const pointerLeft = cutout ? Math.max(16, Math.min(cardWidth - 28, cutout.x + cutout.width / 2 - cardLeft - 6)) : cardWidth / 2 - 6;
 
-  const advance = () => {
-    if (index >= steps.length - 1) onFinish();
-    else setIndex((current) => current + 1);
+  const measureCard = (event: LayoutChangeEvent) => {
+    const next = event.nativeEvent.layout;
+    setCardSize((current) => Math.abs(current.width - next.width) < 1 && Math.abs(current.height - next.height) < 1
+      ? current
+      : { width: next.width, height: next.height });
   };
 
+  const advance = () => {
+    if (index >= steps.length - 1) finishGuide();
+    else setStep(index + 1);
+  };
+
+  if (!visible) return null;
+
   return (
-    <View accessibilityViewIsModal style={styles.overlay} pointerEvents="box-none">
-      {hasBounds && cutout ? (
+    <View
+      ref={overlayRef}
+      accessibilityViewIsModal
+      onLayout={() => measureOverlay(overlayRef.current)}
+      pointerEvents="box-none"
+      style={styles.overlay}
+    >
+      {cutout ? (
         <>
           <Pressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: 0, top: 0, right: 0, height: Math.max(0, cutout.y) }]} />
           <Pressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: 0, top: cutout.y, width: Math.max(0, cutout.x), height: cutout.height }]} />
           <Pressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: cutout.x + cutout.width, top: cutout.y, right: 0, height: cutout.height }]} />
           <Pressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: 0, top: cutout.y + cutout.height, right: 0, bottom: 0 }]} />
-          <Pressable accessibilityElementsHidden onPress={() => undefined} style={[styles.targetGuard, { left: cutout.x, top: cutout.y, width: cutout.width, height: cutout.height }]} />
           <View pointerEvents="none" style={[styles.cutout, { left: cutout.x, top: cutout.y, width: cutout.width, height: cutout.height, borderColor: colors.aqua }]} />
         </>
       ) : <Pressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, StyleSheet.absoluteFill]} />}
 
-      <View accessibilityLabel={`In-app guide, step ${index + 1} of ${steps.length}`} style={[styles.card, { top: cardTop, left: cardLeft, width: cardWidth, backgroundColor: colors.surface, borderColor: colors.line }]}>
+      <View
+        accessibilityLabel={`In-app guide, step ${index + 1} of ${steps.length}`}
+        onLayout={measureCard}
+        style={[styles.card, { top: placement.top, left: cardLeft, width: cardWidth, backgroundColor: colors.surface, borderColor: colors.line }]}
+      >
+        {cutout ? <View pointerEvents="none" style={[styles.pointer, placement.above ? styles.pointerBelow : styles.pointerAbove, { left: pointerLeft, backgroundColor: colors.surface, borderColor: colors.line }]} /> : null}
         <View style={styles.cardHeading}>
           <View style={[styles.stepIcon, { backgroundColor: colors.accentSoft }]}><Feather name={step.icon} size={18} color={colors.accent} /></View>
           <View style={styles.headingCopy}>
-            <Text style={[styles.progress, { color: colors.accent }]}>{index + 1} of {steps.length}</Text>
+            <Text style={[styles.progress, { color: colors.accent }]}>{index + 1} OF {steps.length}</Text>
             <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>{step.title}</Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Skip guide" onPress={onFinish} hitSlop={8} style={styles.closeButton}>
-            <Feather name="x" size={18} color={colors.muted} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Skip guide" onPress={finishGuide} hitSlop={8} style={styles.skipTop}>
+            <Text style={[styles.skipText, { color: colors.muted }]}>Skip</Text>
           </Pressable>
         </View>
         <Text style={[styles.detail, { color: colors.muted }]}>{step.detail}</Text>
-        {!hasBounds ? <Text style={[styles.hint, { color: colors.quiet }]}>The highlighted control is on the current screen.</Text> : null}
+        {!cutout ? <Text style={[styles.hint, { color: colors.quiet }]}>The highlighted control is on the current screen.</Text> : null}
         <View style={styles.footer}>
-          <Pressable accessibilityRole="button" onPress={onFinish} style={styles.skipButton}><Text style={[styles.skipText, { color: colors.muted }]}>Skip guide</Text></Pressable>
+          {index > 0 ? (
+              <Pressable accessibilityRole="button" onPress={() => setStep(Math.max(0, index - 1))} style={styles.backButton}>
+              <Text style={[styles.skipText, { color: colors.muted }]}>Back</Text>
+            </Pressable>
+          ) : <View style={styles.backButton} />}
           <Pressable accessibilityRole="button" onPress={advance} style={[styles.nextButton, { backgroundColor: colors.accent }]}>
-            <Text style={[styles.nextText, { color: colors.onAccent }]}>{index === steps.length - 1 ? 'Done' : 'Next'}</Text>
+            <Text style={[styles.nextText, { color: colors.onAccent }]}>{index === steps.length - 1 ? 'Finish guide' : 'Next'}</Text>
             {index < steps.length - 1 ? <Feather name="arrow-right" size={16} color={colors.onAccent} /> : null}
           </Pressable>
         </View>
@@ -74,21 +129,23 @@ export function InAppGuide({ onFinish }: { onFinish: () => void }) {
 
 const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFill, zIndex: 1000 },
-  shade: { position: 'absolute', backgroundColor: 'rgba(3, 10, 20, 0.74)' },
-  targetGuard: { position: 'absolute' },
-  cutout: { position: 'absolute', borderWidth: 2, borderRadius: 15, shadowColor: '#00D3C5', shadowOpacity: 0.38, shadowRadius: 10, elevation: 8 },
-  card: { position: 'absolute', maxWidth: 440, alignSelf: 'center', padding: 16, borderWidth: 1, borderRadius: 17, gap: 12, elevation: 12, shadowColor: '#000000', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } },
-  cardHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  shade: { position: 'absolute', backgroundColor: 'rgba(3, 10, 20, 0.72)' },
+  cutout: { position: 'absolute', borderWidth: 2, borderRadius: 13, shadowColor: '#00D3C5', shadowOpacity: 0.45, shadowRadius: 9, elevation: 8 },
+  card: { position: 'absolute', maxWidth: 420, padding: 14, borderWidth: 1, borderRadius: 14, gap: 10, elevation: 12, shadowColor: '#000000', shadowOpacity: 0.2, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } },
+  pointer: { position: 'absolute', zIndex: 2, width: 12, height: 12, borderWidth: 1, transform: [{ rotate: '45deg' }] },
+  pointerAbove: { top: -7, borderRightWidth: 0, borderBottomWidth: 0 },
+  pointerBelow: { bottom: -7, borderLeftWidth: 0, borderTopWidth: 0 },
+  cardHeading: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 9 },
   stepIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   headingCopy: { flex: 1, gap: 1 },
-  progress: { fontSize: 11, lineHeight: 15, fontWeight: '700', letterSpacing: 0.3 },
-  title: { fontSize: 18, lineHeight: 23, fontWeight: '700', letterSpacing: -0.2 },
-  closeButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
-  detail: { fontSize: 14, lineHeight: 21 },
+  progress: { fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.4 },
+  title: { fontSize: 17, lineHeight: 22, fontWeight: '700', letterSpacing: -0.2 },
+  skipTop: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  detail: { fontSize: 14, lineHeight: 20 },
   hint: { fontSize: 12, lineHeight: 16 },
-  footer: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  skipButton: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 2 },
+  footer: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  backButton: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   skipText: { fontSize: 13, fontWeight: '600' },
-  nextButton: { minWidth: 96, minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 12 },
+  nextButton: { minWidth: 120, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 12 },
   nextText: { fontSize: 14, fontWeight: '700' },
 });

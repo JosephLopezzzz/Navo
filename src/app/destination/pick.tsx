@@ -12,7 +12,7 @@ import { clearPendingDestinationMapSelection, takePendingDestinationMapSelection
 import { createPlacesSearchSessionId, discoverNearbyPlaces, resolvePlaceSuggestion, suggestPlaces, type TomTomPlaceSuggestion } from '../../services/tomtom';
 import { railLines } from '../../data/routes';
 
-const WAKE_RADII = [250, 500, 750, 1000];
+const WAKE_RADII = [200, 500, 1000];
 
 type Coordinate = { latitude: number; longitude: number };
 type PickerStep = 'choose' | 'review';
@@ -135,6 +135,33 @@ function DestinationForm({
       controller.abort();
     };
   }, [query, shouldSearch, step]);
+
+  useEffect(() => {
+    if (step !== 'choose' || kind === 'rail-station') return;
+    let active = true;
+    void (async () => {
+      try {
+        const permission = await Location.getForegroundPermissionsAsync();
+        if (!active) return;
+        if (!permission.granted) {
+          setNearbyLoading(false);
+          return;
+        }
+        setNearbyLoading(true);
+        const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const results = await discoverNearbyPlaces(kind, {
+          latitude: current.coords.latitude,
+          longitude: current.coords.longitude,
+        }, searchSessionId.current);
+        if (active) setNearbySuggestions(results);
+      } catch {
+        // The search field and explicit nearby action remain available if location lookup fails.
+      } finally {
+        if (active) setNearbyLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [kind, step]);
 
   const existingAlarm = destinationId
     ? app.destinationAlarms.find((alarm) => alarm.destinationId === destinationId)
@@ -291,21 +318,38 @@ function DestinationForm({
   const visibleSuggestions = suggestions.length > 0 ? suggestions : nearbySuggestions;
   const showingNearby = suggestions.length === 0 && nearbySuggestions.length > 0;
   const visibleRailStops = selectedRailLine.stops.slice(0, allStationsVisible ? selectedRailLine.stops.length : 6);
+  const permissionSummaryText = 'Uses your current location with TomTom to find nearby stops.';
+  const footer = step === 'review' ? (
+    <>
+      {editWillDisarm ? <Text style={[styles.warningText, { color: colors.warning }]}>Saving changes turns this alarm off.</Text> : null}
+      {saveProblem ? <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{saveProblem}</Text> : null}
+      <PrimaryButton title={saving ? 'Saving…' : 'Save alarm'} onPress={() => void saveDestination()} disabled={!coordinate || !pointConfirmed || !name.trim() || saving} />
+      <Text style={[styles.footnote, { color: colors.muted }]}>Alarm stays off until you switch it on.</Text>
+      <Pressable accessibilityRole="button" disabled={saving} onPress={() => router.back()} style={styles.cancelButton}>
+        <Text style={[styles.cancelText, { color: colors.muted }]}>Cancel</Text>
+      </Pressable>
+    </>
+  ) : undefined;
 
   return (
-    <Screen scrollRef={screenScrollRef}>
+    <Screen scrollRef={screenScrollRef} footer={footer}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel={step === 'review' && !destinationId ? 'Back to stop search' : 'Go back'} onPress={back} style={styles.backButton}>
           <Feather name="arrow-left" size={20} color={colors.ink} />
         </Pressable>
         <View style={styles.headingCopy}>
-          <ScreenTitle>{destinationId ? 'Edit alarm' : 'Add alarm'}</ScreenTitle>
-          <Subtle>{step === 'choose' ? 'Choose your stop.' : 'Review your stop and alert distance.'}</Subtle>
+          <Text accessibilityRole="header" style={[styles.headerTitle, { color: colors.ink }]}>{destinationId ? 'Edit alarm' : 'Add alarm'}</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.muted }]}>{step === 'choose' ? 'Choose your destination.' : 'Review your stop.'}</Text>
         </View>
       </View>
 
       {step === 'choose' ? (
         <>
+          <View style={styles.chooserIntro}>
+            <Text style={[styles.eyebrow, { color: colors.accent }]}>CHOOSE YOUR DESTINATION</Text>
+            <Text accessibilityRole="header" style={[styles.chooserTitle, { color: colors.ink }]}>Where are you going?</Text>
+            <Subtle>Save a stop now. Turn the alarm on when you’re ready to travel.</Subtle>
+          </View>
           <View style={styles.kindSection}>
             <View style={[styles.kindControl, { backgroundColor: colors.raised }]}>
               {destinationKinds.map((item) => {
@@ -398,7 +442,7 @@ function DestinationForm({
                 </View>
                 <View style={styles.actionCopy}>
                   <Text style={[styles.mapActionText, { color: colors.ink }]}>{nearbyLoading ? 'Finding nearby…' : kind === 'bus-dropoff' ? 'Find nearby bus locations' : 'Find places nearby'}</Text>
-                  <Text style={[styles.actionDetail, { color: colors.muted }]}>Shares your current location with TomTom</Text>
+                  <Text style={[styles.actionDetail, { color: colors.muted }]}>{permissionSummaryText}</Text>
                 </View>
                 <Feather name="chevron-right" size={18} color={colors.muted} />
               </Pressable>
@@ -512,7 +556,10 @@ function DestinationForm({
 
           <View style={styles.radiusSection}>
             <View style={styles.radiusHeading}>
-              <Text style={[styles.radiusTitle, { color: colors.ink }]}>Alert distance</Text>
+              <View style={styles.radiusCopy}>
+                <Text style={[styles.radiusTitle, { color: colors.ink }]}>Remind me before I arrive</Text>
+                <Text style={[styles.actionDetail, { color: colors.muted }]}>Choose how close you want to be.</Text>
+              </View>
               <Text style={[styles.radiusValue, { color: colors.accent }]}>{radiusM >= 1000 ? `${radiusM / 1000} km` : `${radiusM} m`}</Text>
             </View>
             <View style={styles.radiusOptions}>
@@ -534,12 +581,6 @@ function DestinationForm({
             </View>
           </View>
 
-          {editWillDisarm && <Text style={[styles.warningText, { color: colors.warning }]}>Saving changes turns this alarm off.</Text>}
-          {saveProblem && <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{saveProblem}</Text>}
-          <View style={styles.saveArea}>
-            <PrimaryButton title={saving ? 'Saving…' : 'Save alarm'} onPress={() => void saveDestination()} disabled={!coordinate || !pointConfirmed || !name.trim() || saving} />
-            <Text style={[styles.footnote, { color: colors.muted }]}>The alarm starts off.</Text>
-          </View>
         </>
       )}
     </Screen>
@@ -550,6 +591,11 @@ const styles = StyleSheet.create({
   header: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10 },
   backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headingCopy: { flex: 1, gap: 1 },
+  headerTitle: { fontSize: 20, lineHeight: 25, fontWeight: '700', letterSpacing: -0.3 },
+  headerSubtitle: { fontSize: 11, lineHeight: 15 },
+  chooserIntro: { gap: 5, paddingTop: 1 },
+  eyebrow: { fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.4 },
+  chooserTitle: { fontSize: 21, lineHeight: 27, fontWeight: '700', letterSpacing: -0.35 },
   kindSection: { gap: 8 },
   kindControl: { flexDirection: 'row', padding: 4, borderRadius: 14, gap: 4 },
   kindOption: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 11 },
@@ -602,13 +648,15 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 13, fontWeight: '600' },
   nameInput: { minHeight: 48, borderWidth: 1, borderRadius: 13, paddingHorizontal: 12, fontSize: 15 },
   radiusSection: { gap: 10 },
-  radiusHeading: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  radiusHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  radiusCopy: { flex: 1, gap: 3 },
   radiusTitle: { fontSize: 15, fontWeight: '700' },
   radiusValue: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
   radiusOptions: { flexDirection: 'row', gap: 7 },
   radiusChip: { flex: 1, minWidth: 54, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1, borderRadius: 11 },
   radiusText: { fontSize: 12, fontWeight: '700' },
   warningText: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  saveArea: { gap: 5, paddingTop: 2 },
   footnote: { textAlign: 'center', fontSize: 12 },
+  cancelButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  cancelText: { fontSize: 12, fontWeight: '600' },
 });

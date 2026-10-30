@@ -24,6 +24,7 @@ export interface FirstRunState {
   onboardingComplete: boolean;
   preferences: OnboardingPreferences;
   guideCompleted: boolean;
+  permissionNoticeAlarmId: string | null;
 }
 export interface StoredAppState {
   schemaVersion: 3;
@@ -59,6 +60,7 @@ export const defaultFirstRunState: FirstRunState = {
   onboardingComplete: false,
   preferences: defaultOnboardingPreferences,
   guideCompleted: false,
+  permissionNoticeAlarmId: null,
 };
 export const defaultAppState: StoredAppState = {
   schemaVersion: 3,
@@ -103,6 +105,9 @@ export function normalizeAppState(value: unknown): StoredAppState {
         : null,
       onboardingComplete: parsed.firstRun?.onboardingComplete === true,
       guideCompleted: parsed.firstRun?.guideCompleted === true,
+      permissionNoticeAlarmId: typeof parsed.firstRun?.permissionNoticeAlarmId === 'string'
+        ? parsed.firstRun.permissionNoticeAlarmId
+        : null,
       preferences: {
         ...defaultOnboardingPreferences,
         ...parsed.firstRun?.preferences,
