@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { ActivityIndicator, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import * as Location from 'expo-location';
 import { Divider, PrimaryButton, Screen, ScreenTitle, Subtle } from '../../components/ui';
 import { createDestinationAlarm, DEFAULT_DESTINATION_RADIUS_M, disarmDestinationAlarm } from '../../domain/destination-alarm';
@@ -11,11 +12,33 @@ import { useNavoColors } from '../../theme/colors';
 import { clearPendingDestinationMapSelection, takePendingDestinationMapSelection } from '../../state/destination-map-selection';
 import { createPlacesSearchSessionId, discoverNearbyPlaces, resolvePlaceSuggestion, suggestPlaces, type TomTomPlaceSuggestion } from '../../services/tomtom';
 import { railLines } from '../../data/routes';
+import { formatCoordinates, parseCoordinates } from '../../domain/coordinates';
 
 const WAKE_RADII = [200, 500, 1000];
 
 type Coordinate = { latitude: number; longitude: number };
 type PickerStep = 'choose' | 'review';
+
+const PLACE_CATEGORIES = [
+  { label: 'Hospital', query: 'hospital' },
+  { label: 'Mall', query: 'shopping mall' },
+  { label: 'Terminal', query: 'transport terminal' },
+  { label: 'Market', query: 'market' },
+] as const;
+
+async function getCurrentPositionQuickly(): Promise<Location.LocationObject> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('Location is taking too long. Check that location is on and try again.')), 12_000);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 const destinationKinds: { id: DestinationKind; label: string; icon: keyof typeof Feather.glyphMap }[] = [
   { id: 'rail-station', label: 'Rail', icon: 'navigation' },
@@ -63,6 +86,8 @@ function DestinationForm({
   const [railLineId, setRailLineId] = useState(app.firstRun.preferences.preferredRailLineId);
   const [nearbySuggestions, setNearbySuggestions] = useState<TomTomPlaceSuggestion[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyLabel, setNearbyLabel] = useState('Nearby places');
+  const [selectedNearbyCategory, setSelectedNearbyCategory] = useState<string | null>(null);
   const [allStationsVisible, setAllStationsVisible] = useState(false);
   const [name, setName] = useState(initialDestination?.name ?? '');
   const [subtitle, setSubtitle] = useState(initialDestination?.subtitle ?? '');
@@ -79,6 +104,7 @@ function DestinationForm({
   const [shouldSearch, setShouldSearch] = useState(false);
   const [suggestions, setSuggestions] = useState<TomTomPlaceSuggestion[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchAttempt, setSearchAttempt] = useState(0);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [searchProblem, setSearchProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -86,6 +112,7 @@ function DestinationForm({
   const searchSessionId = useRef(createPlacesSearchSessionId());
   const screenScrollRef = useRef<ScrollViewInstance>(null);
   const searchController = useRef<AbortController | null>(null);
+  const nearbyController = useRef<AbortController | null>(null);
   const busyRef = useRef(false);
   const selectedRailLine = railLines.find((line) => line.id === railLineId) ?? railLines[0]!;
   const savedForKind = useMemo(() => {
@@ -112,7 +139,7 @@ function DestinationForm({
 
   useEffect(() => {
     const value = query.trim();
-    if (step !== 'choose' || !shouldSearch || value.length < 3) return;
+    if (step !== 'choose' || !shouldSearch || value.length < 3 || parseCoordinates(value)) return;
     const controller = new AbortController();
     searchController.current?.abort();
     searchController.current = controller;
@@ -134,11 +161,13 @@ function DestinationForm({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, shouldSearch, step]);
+  }, [query, searchAttempt, shouldSearch, step]);
 
   useEffect(() => {
     if (step !== 'choose' || kind === 'rail-station') return;
     let active = true;
+    const controller = new AbortController();
+    nearbyController.current = controller;
     void (async () => {
       try {
         const permission = await Location.getForegroundPermissionsAsync();
@@ -148,19 +177,27 @@ function DestinationForm({
           return;
         }
         setNearbyLoading(true);
-        const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const current = await getCurrentPositionQuickly();
         const results = await discoverNearbyPlaces(kind, {
           latitude: current.coords.latitude,
           longitude: current.coords.longitude,
-        }, searchSessionId.current);
-        if (active) setNearbySuggestions(results);
-      } catch {
-        // The search field and explicit nearby action remain available if location lookup fails.
+        }, searchSessionId.current, controller.signal);
+        if (active) {
+          setNearbySuggestions(results);
+          setNearbyLabel(kind === 'bus-dropoff' ? 'Nearby bus locations' : 'Nearby places');
+          if (results.length === 0) setSearchProblem('No nearby picks yet. Try a category or search by name, address, or coordinates.');
+        }
+      } catch (error) {
+        if (active && !controller.signal.aborted) setSearchProblem(error instanceof Error ? error.message : 'Nearby suggestions could not load. Try a category or search instead.');
       } finally {
-        if (active) setNearbyLoading(false);
+        if (active && !controller.signal.aborted) setNearbyLoading(false);
       }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      controller.abort();
+      if (nearbyController.current === controller) nearbyController.current = null;
+    };
   }, [kind, step]);
 
   const existingAlarm = destinationId
@@ -211,30 +248,57 @@ function DestinationForm({
     });
   };
 
-  const findNearby = async () => {
-    if (kind === 'rail-station' || nearbyLoading || busyRef.current) return;
+  const findNearby = async (categoryQuery?: string, categoryLabel?: string) => {
+    if (kind === 'rail-station' || busyRef.current) return;
+    setSelectedNearbyCategory(categoryQuery ?? null);
+    nearbyController.current?.abort();
+    const controller = new AbortController();
+    nearbyController.current = controller;
     setNearbyLoading(true);
     setSearchProblem(null);
     setSuggestions([]);
+    setNearbySuggestions([]);
+    if (categoryQuery) {
+      setQuery('');
+      setShouldSearch(false);
+    }
+    setNearbyLabel(categoryLabel ? `Nearby ${categoryLabel.toLowerCase()}` : kind === 'bus-dropoff' ? 'Nearby bus locations' : 'Nearby places');
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) {
         setSearchProblem('Location is off. Allow it while using Navo to find nearby suggestions, or browse the saved destinations below.');
         return;
       }
-      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const current = await getCurrentPositionQuickly();
+      if (controller.signal.aborted) return;
       const results = await discoverNearbyPlaces(kind, {
         latitude: current.coords.latitude,
         longitude: current.coords.longitude,
-      }, searchSessionId.current);
+      }, searchSessionId.current, controller.signal, categoryQuery);
+      if (controller.signal.aborted) return;
       setNearbySuggestions(results);
-      if (results.length === 0) setSearchProblem('No nearby matches yet. Try a search or choose a point on the map.');
+      if (results.length === 0) setSearchProblem('No nearby matches yet. Try another category or search by name, address, or coordinates.');
     } catch (error) {
-      setNearbySuggestions([]);
-      setSearchProblem(error instanceof Error ? error.message : 'Nearby search is unavailable. Try a search or choose a point on the map.');
+      if (!controller.signal.aborted) {
+        setNearbySuggestions([]);
+        setSearchProblem(error instanceof Error ? error.message : 'Nearby search is unavailable. Try a search or choose a point on the map.');
+      }
     } finally {
-      setNearbyLoading(false);
+      if (!controller.signal.aborted) {
+        if (nearbyController.current === controller) nearbyController.current = null;
+        setNearbyLoading(false);
+      }
     }
+  };
+
+  const retrySearch = () => {
+    setSearchProblem(null);
+    if (kind !== 'rail-station' && !shouldSearch && query.trim().length < 3) {
+      const categoryLabel = PLACE_CATEGORIES.find((category) => category.query === selectedNearbyCategory)?.label;
+      void findNearby(selectedNearbyCategory ?? undefined, categoryLabel);
+      return;
+    }
+    setSearchAttempt((current) => current + 1);
   };
 
   const browseSavedDestination = (destination: SavedDestination) => {
@@ -314,9 +378,10 @@ function DestinationForm({
 
   const searchPlaceholder = kind === 'rail-station'
     ? 'Search a station'
-    : kind === 'bus-dropoff' ? 'Search a bus stop or area' : 'Search a place';
+    : kind === 'bus-dropoff' ? 'Search a bus stop or area' : 'Place, address, or coordinates';
   const visibleSuggestions = suggestions.length > 0 ? suggestions : nearbySuggestions;
   const showingNearby = suggestions.length === 0 && nearbySuggestions.length > 0;
+  const coordinateInput = kind === 'place' ? parseCoordinates(query) : null;
   const visibleRailStops = selectedRailLine.stops.slice(0, allStationsVisible ? selectedRailLine.stops.length : 6);
   const permissionSummaryText = 'Uses your current location with TomTom to find nearby stops.';
   const footer = step === 'review' ? (
@@ -363,6 +428,7 @@ function DestinationForm({
                     onPress={() => {
                       if (item.id === kind) return;
                       setKind(item.id);
+                      setSelectedNearbyCategory(null);
                       setQuery('');
                       setSuggestions([]);
                       setNearbySuggestions([]);
@@ -412,9 +478,13 @@ function DestinationForm({
               autoCapitalize="words"
               autoCorrect={false}
               onChangeText={(value) => {
+                nearbyController.current?.abort();
+                setNearbyLoading(false);
+                setSelectedNearbyCategory(null);
                 setQuery(value);
                 setSuggestions([]);
                 setNearbySuggestions([]);
+                setSearchLoading(false);
                 setSearchProblem(null);
                 setShouldSearch(true);
               }}
@@ -428,7 +498,7 @@ function DestinationForm({
             />
             {searchLoading || resolvingId ? <ActivityIndicator color={colors.accent} /> : null}
             {query.length > 0 && !searchLoading && !resolvingId && (
-              <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => { setQuery(''); setSuggestions([]); setNearbySuggestions([]); setShouldSearch(false); }} style={styles.clearButton}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => { nearbyController.current?.abort(); setNearbyLoading(false); setSearchLoading(false); setSelectedNearbyCategory(null); setQuery(''); setSuggestions([]); setNearbySuggestions([]); setShouldSearch(false); }} style={styles.clearButton}>
                 <Feather name="x-circle" size={18} color={colors.quiet} />
               </Pressable>
             )}
@@ -436,7 +506,7 @@ function DestinationForm({
 
           {kind !== 'rail-station' ? (
             <>
-              <Pressable accessibilityRole="button" onPress={() => void findNearby()} disabled={nearbyLoading} style={[styles.mapAction, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}>
+              <Pressable accessibilityRole="button" onPress={() => void findNearby()} style={[styles.mapAction, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}>
                 <View style={[styles.mapActionIcon, { backgroundColor: colors.surface }]}>
                   {nearbyLoading ? <ActivityIndicator color={colors.accent} /> : <Feather name="crosshair" size={17} color={colors.accent} />}
                 </View>
@@ -454,8 +524,60 @@ function DestinationForm({
             </>
           ) : null}
 
+          {kind === 'place' ? (
+            <>
+              <Text style={[styles.coordinateHint, { color: colors.muted }]}>Search a place or address, or enter latitude, longitude. Example: 14.749463, 121.005239</Text>
+              {coordinateInput ? (
+                <Pressable accessibilityRole="button" onPress={() => {
+                  const coordinateLabel = formatCoordinates(coordinateInput);
+                  setCoordinate(coordinateInput);
+                  setName('Pinned coordinates');
+                  setSubtitle(`Entered coordinates · ${coordinateLabel}`);
+                  setSource('map-pin');
+                  setProviderPlaceId(undefined);
+                  setPointConfirmed(true);
+                  setShouldSearch(false);
+                  setSuggestions([]);
+                  setNearbySuggestions([]);
+                  setStep('review');
+                }} style={[styles.coordinateAction, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}>
+                  <View style={[styles.mapActionIcon, { backgroundColor: colors.surface }]}><Feather name="crosshair" size={17} color={colors.accent} /></View>
+                  <View style={styles.actionCopy}>
+                    <Text style={[styles.mapActionText, { color: colors.ink }]}>Use these coordinates</Text>
+                    <Text style={[styles.actionDetail, { color: colors.muted }]}>{formatCoordinates(coordinateInput)} · latitude, longitude</Text>
+                  </View>
+                  <Feather name="arrow-right" size={17} color={colors.accent} />
+                </Pressable>
+              ) : (
+                <View style={styles.categorySection}>
+                  <Text style={[styles.sectionLabel, { color: colors.muted }]}>Browse nearby</Text>
+                  <View style={styles.categoryChips}>
+                    {PLACE_CATEGORIES.map((category) => (
+                      <Pressable
+                        key={category.query}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: selectedNearbyCategory === category.query }}
+                        onPress={() => void findNearby(category.query, category.label)}
+                        style={[
+                          styles.categoryChip,
+                          {
+                            backgroundColor: selectedNearbyCategory === category.query ? colors.accentSoft : colors.surface,
+                            borderColor: selectedNearbyCategory === category.query ? colors.accent : colors.line,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.categoryChipText, { color: selectedNearbyCategory === category.query ? colors.accent : colors.ink }]}>{category.label}</Text>
+                        {selectedNearbyCategory === category.query ? <Feather name="check" size={13} color={colors.accent} /> : null}
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </>
+          ) : null}
+
           {query.trim().length > 0 && query.trim().length < 3 && shouldSearch && <Subtle>Enter at least 3 characters to search.</Subtle>}
-          {showingNearby ? <Text style={[styles.sectionLabel, { color: colors.muted }]}>{kind === 'bus-dropoff' ? 'Nearby bus locations' : 'Nearby places'}</Text> : null}
+          {showingNearby ? <Text style={[styles.sectionLabel, { color: colors.muted }]}>{nearbyLabel}</Text> : null}
           {visibleSuggestions.length > 0 && (
             <View style={[styles.suggestionList, { borderColor: colors.line, backgroundColor: colors.surface }]}>
               {visibleSuggestions.map((suggestion, index) => (
@@ -476,7 +598,14 @@ function DestinationForm({
             </View>
           )}
           {shouldSearch && query.trim().length >= 3 && !searchLoading && !resolvingId && suggestions.length === 0 && !searchProblem ? <Subtle>No matches yet. Try a nearby result or adjust your search.</Subtle> : null}
-          {searchProblem && <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{searchProblem}</Text>}
+          {searchProblem && (
+            <View style={[styles.problemRow, { backgroundColor: colors.dangerSoft }]}>
+              <Text accessibilityRole="alert" style={[styles.problemText, styles.problemCopy, { color: colors.danger }]}>{searchProblem}</Text>
+              <Pressable accessibilityRole="button" onPress={retrySearch} style={[styles.problemRetry, { backgroundColor: colors.surface }]}>
+                <Text style={[styles.problemRetryText, { color: colors.accent }]}>Try again</Text>
+              </Pressable>
+            </View>
+          )}
 
           {kind === 'rail-station' ? (
             <View style={styles.stationSection}>
@@ -516,7 +645,7 @@ function DestinationForm({
                   </View>
                   <Feather name="chevron-right" size={16} color={colors.quiet} />
                 </Pressable>
-              )) : <Subtle>Nearby picks appear after you choose “Find nearby.” Saved stops will appear here for quick access.</Subtle>}
+              )) : <Subtle>{kind === 'place' ? 'Choose a nearby category, search by name or address, or enter coordinates. Saved places will appear here.' : 'Nearby picks appear after you choose “Find nearby.” Saved stops will appear here for quick access.'}</Subtle>}
             </View>
           )}
 
@@ -616,6 +745,12 @@ const styles = StyleSheet.create({
   actionCopy: { flex: 1, gap: 2 },
   mapActionText: { fontSize: 14, fontWeight: '600' },
   actionDetail: { fontSize: 11, lineHeight: 15 },
+  coordinateHint: { fontSize: 12, lineHeight: 17 },
+  coordinateAction: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 9, borderWidth: 1, borderRadius: 14 },
+  categorySection: { gap: 7 },
+  categoryChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  categoryChip: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12, borderWidth: 1, borderRadius: 22, overflow: 'hidden' },
+  categoryChipText: { fontSize: 12, fontWeight: '600' },
   sectionLabel: { marginTop: 1, fontSize: 13, fontWeight: '700' },
   suggestionList: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
   suggestionRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 10 },
@@ -623,7 +758,11 @@ const styles = StyleSheet.create({
   suggestionCopy: { flex: 1, gap: 3 },
   suggestionTitle: { fontSize: 14, lineHeight: 18, fontWeight: '700' },
   suggestionSubtitle: { fontSize: 12 },
+  problemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
   problemText: { fontSize: 13, lineHeight: 19 },
+  problemCopy: { flex: 1 },
+  problemRetry: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 10 },
+  problemRetryText: { fontSize: 12, fontWeight: '700' },
   stationSection: { gap: 8 },
   stationHint: { fontSize: 12, lineHeight: 18 },
   stationList: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },

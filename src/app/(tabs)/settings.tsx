@@ -1,10 +1,10 @@
 import { useCallback, useState, type PropsWithChildren } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { StyleSheet, Switch, Text, View } from 'react-native';
+import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import { router, useFocusEffect } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import Constants from 'expo-constants';
 import { DataSeal, Divider, Screen, ScreenTitle, Subtle } from '../../components/ui';
-import { NavoMark } from '../../components/NavoMark';
 import { useGuideControls } from '../../components/guide/GuideTargets';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
@@ -36,10 +36,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen tabBar>
-      <View style={styles.brandRow}>
-        <View style={styles.brandName}><NavoMark size={32} /><Text style={[styles.wordmark, { color: colors.ink }]}>Navo</Text></View>
-        {app.firstRun.preferences.displayName ? <Text style={[styles.greeting, { color: colors.muted }]}>Hi, {app.firstRun.preferences.displayName.trim().split(/\s+/)[0]}</Text> : null}
-      </View>
+      {app.firstRun.preferences.displayName ? <Text style={[styles.greeting, { color: colors.muted }]}>Hi, {app.firstRun.preferences.displayName.trim().split(/\s+/)[0]}</Text> : null}
       <ScreenTitle>Settings</ScreenTitle>
 
       {app.storageProblem ? (
@@ -129,7 +126,7 @@ function SettingsGroup({ title, children }: PropsWithChildren<{ title: string }>
 function SettingLink({ icon, title, detail, onPress }: { icon: keyof typeof Feather.glyphMap; title: string; detail: string; onPress: () => void }) {
   const colors = useNavoColors();
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.settingLink, { opacity: pressed ? 0.75 : 1 }]}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.settingLink}>
       <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}><Feather name={icon} size={15} color={colors.accent} /></View>
       <View style={styles.rowCopy}>
         <Text style={[styles.settingTitle, { color: colors.ink }]}>{title}</Text>
@@ -160,9 +157,6 @@ function AppearanceOption({ label, selected, onPress }: { label: string; selecte
 }
 
 const styles = StyleSheet.create({
-  brandRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brandName: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  wordmark: { fontSize: 18, fontWeight: '700', letterSpacing: -0.35 },
   greeting: { fontSize: 12, fontWeight: '600' },
   storageNotice: { gap: 9, padding: 12, borderRadius: 13 },
   group: { gap: 6 },

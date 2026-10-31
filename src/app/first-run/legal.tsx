@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import { Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DataSeal, PrimaryButton, Subtle } from '../../components/ui';
 import { LegalSections } from '../../components/legal/LegalSections';

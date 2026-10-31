@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
+import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import { Body, DataSeal, Divider, PrimaryButton, Screen, ScreenTitle, SectionTitle, Subtle } from '../../components/ui';
 import { makeJourneyRoute, railLines } from '../../data/routes';
 import type { AlertMode, Stop, Trip } from '../../domain/models';

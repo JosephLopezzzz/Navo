@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { StyleSheet, Text, View } from 'react-native';
+import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import { DataSeal, Screen } from '../../components/ui';
 import { LegalSections } from '../../components/legal/LegalSections';
 import { isLegalPageKey, legalPages } from '../../data/legal';

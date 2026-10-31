@@ -2,6 +2,10 @@ import type { DestinationKind, SavedDestination } from '../domain/models';
 
 export const TOMTOM_API_KEY = process.env.EXPO_PUBLIC_TOMTOM_API_KEY?.trim() ?? '';
 const SEARCH_ROOT = 'https://api.tomtom.com/maps/orbis/places';
+const MAP_ATTRIBUTION_TIMEOUT_MS = 4_000;
+
+let cachedMapAttribution: string | null = null;
+let mapAttributionRequest: Promise<string | null> | null = null;
 
 export interface TomTomPlaceSuggestion {
   id: string;
@@ -20,6 +24,18 @@ interface TomTomPlaceResponse extends TomTomPlaceSuggestion {
   position?: TomTomPosition;
 }
 
+interface TomTomReverseGeocodeResult {
+  title?: unknown;
+  address?: {
+    street?: unknown;
+    houseNumber?: unknown;
+    neighborhood?: unknown;
+    municipalitySubdivision?: unknown;
+    municipality?: unknown;
+    countrySubdivision?: unknown;
+  };
+}
+
 function errorForStatus(status: number): Error {
   if (status === 403) return new Error('TomTom could not use this API key. Check its product access and restrictions.');
   if (status === 429) return new Error('TomTom search is busy. Wait a moment and try again.');
@@ -29,6 +45,30 @@ function errorForStatus(status: number): Error {
 function requireApiKey(): string {
   if (!TOMTOM_API_KEY) throw new Error('Add EXPO_PUBLIC_TOMTOM_API_KEY to your local environment to use map search.');
   return TOMTOM_API_KEY;
+}
+
+async function fetchSearch(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const originalSignal = init.signal;
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, 15_000);
+  const abortFromCaller = () => controller.abort();
+
+  if (originalSignal?.aborted) controller.abort();
+  else originalSignal?.addEventListener('abort', abortFromCaller, { once: true });
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (timedOut) throw new Error('Search took too long. Check your connection and try again.');
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    originalSignal?.removeEventListener('abort', abortFromCaller);
+  }
 }
 
 function searchHeaders(sessionId: string): HeadersInit {
@@ -51,7 +91,7 @@ export function createPlacesSearchSessionId(): string {
 }
 
 export async function suggestPlaces(query: string, sessionId: string, signal?: AbortSignal): Promise<TomTomPlaceSuggestion[]> {
-  const response = await fetch(`${SEARCH_ROOT}/suggest`, {
+  const response = await fetchSearch(`${SEARCH_ROOT}/suggest`, {
     method: 'POST',
     headers: searchHeaders(sessionId),
     body: JSON.stringify({
@@ -79,6 +119,7 @@ export async function discoverNearbyPlaces(
   origin: { latitude: number; longitude: number },
   sessionId: string,
   signal?: AbortSignal,
+  query?: string,
 ): Promise<TomTomPlaceSuggestion[]> {
   if (kind === 'rail-station') return [];
   const headers = {
@@ -86,11 +127,11 @@ export async function discoverNearbyPlaces(
     Attributes: 'results(id,type,title,subtitles,position,distanceInMeters)',
   };
   const radiusInMeters = 5000;
-  const response = await fetch(`${SEARCH_ROOT}/discover`, {
+  const response = await fetchSearch(`${SEARCH_ROOT}/discover`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
-      query: kind === 'bus-dropoff' ? 'bus station' : '',
+      query: query ?? (kind === 'bus-dropoff' ? 'bus station' : ''),
       origin: { type: 'point', coordinates: [origin.longitude, origin.latitude] },
       maxResults: 8,
       filters: {
@@ -143,7 +184,7 @@ export async function resolvePlaceSuggestion(
 ): Promise<Omit<SavedDestination, 'id' | 'createdAt' | 'updatedAt'>> {
   const detailsType = detailsTypeBySuggestionType[suggestion.type];
   if (!detailsType) throw new Error('Choose a specific point of interest or address, or place a pin on the map.');
-  const response = await fetch(`${SEARCH_ROOT}/details/${detailsType}/${encodeURIComponent(suggestion.id)}`, {
+  const response = await fetchSearch(`${SEARCH_ROOT}/details/${detailsType}/${encodeURIComponent(suggestion.id)}`, {
     headers: {
       'TomTom-Api-Key': requireApiKey(),
       'TomTom-Api-Version': '3',
@@ -169,16 +210,80 @@ export async function resolvePlaceSuggestion(
   };
 }
 
+export async function reverseGeocodeCoordinate(
+  coordinate: { latitude: number; longitude: number },
+  signal?: AbortSignal,
+): Promise<{ name: string; subtitle: string } | null> {
+  const position = `${coordinate.longitude},${coordinate.latitude}`;
+  const query = `position=${encodeURIComponent(position)}&radiusInMeters=100&geopoliticalView=PH`;
+  const response = await fetchSearch(`${SEARCH_ROOT}/reverseGeocode?${query}`, {
+    headers: {
+      'TomTom-Api-Key': requireApiKey(),
+      'TomTom-Api-Version': '2',
+      Attributes: 'results(title,type,address)',
+      'Accept-Language': 'en-PH,en',
+      Accept: 'application/json',
+    },
+    signal,
+  });
+  if (!response.ok) throw errorForStatus(response.status);
+
+  const body = await response.json() as { results?: unknown };
+  if (!Array.isArray(body.results)) return null;
+  const result = body.results.find((item): item is TomTomReverseGeocodeResult => {
+    if (!item || typeof item !== 'object') return false;
+    const candidate = item as TomTomReverseGeocodeResult;
+    return typeof candidate.title === 'string' || Boolean(candidate.address?.street);
+  });
+  if (!result) return null;
+
+  const address = result.address;
+  const streetLine = [address?.houseNumber, address?.street]
+    .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+    .join(' ');
+  const name = typeof result.title === 'string' && result.title.trim()
+    ? result.title.trim()
+    : streetLine;
+  if (!name) return null;
+
+  const subtitleParts = [
+    address?.neighborhood,
+    address?.municipalitySubdivision,
+    address?.municipality,
+    address?.countrySubdivision,
+  ].filter((part): part is string => typeof part === 'string' && part.trim().length > 0);
+  const uniqueParts = [...new Map(subtitleParts.map((part) => [part.trim().toLocaleLowerCase(), part.trim()])).values()]
+    .filter((part) => !name.toLocaleLowerCase().includes(part.toLocaleLowerCase()));
+
+  return { name, subtitle: uniqueParts.join(' · ') };
+}
+
 export async function fetchMapAttribution(): Promise<string | null> {
   if (!TOMTOM_API_KEY) return null;
-  try {
-    const response = await fetch('https://api.tomtom.com/maps/orbis/copyrights/caption?apiVersion=2&key=' + encodeURIComponent(TOMTOM_API_KEY), {
-      headers: { 'TomTom-Api-Version': '2' },
-    });
-    if (!response.ok) return null;
-    const result = await response.json() as { copyrightsCaption?: unknown };
-    return typeof result.copyrightsCaption === 'string' ? result.copyrightsCaption : null;
-  } catch {
-    return null;
-  }
+  if (cachedMapAttribution) return cachedMapAttribution;
+  if (mapAttributionRequest) return mapAttributionRequest;
+
+  const request = (async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), MAP_ATTRIBUTION_TIMEOUT_MS);
+    try {
+      const response = await fetch('https://api.tomtom.com/maps/orbis/copyrights/caption?apiVersion=2&key=' + encodeURIComponent(TOMTOM_API_KEY), {
+        headers: { 'TomTom-Api-Version': '2' },
+        signal: controller.signal,
+      });
+      if (!response.ok) return null;
+      const result = await response.json() as { copyrightsCaption?: unknown };
+      cachedMapAttribution = typeof result.copyrightsCaption === 'string' ? result.copyrightsCaption : null;
+      return cachedMapAttribution;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  })();
+  mapAttributionRequest = request;
+  void request.finally(() => {
+    if (mapAttributionRequest === request) mapAttributionRequest = null;
+  });
+  return request;
 }

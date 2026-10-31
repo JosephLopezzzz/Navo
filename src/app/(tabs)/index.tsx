@@ -1,11 +1,11 @@
 import { router, useFocusEffect } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Linking, Pressable, StyleSheet, Switch, Text, View, type ScrollViewInstance } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Modal, Pressable as NativePressable, StyleSheet, Switch, Text, View, type ScrollViewInstance } from 'react-native';
+import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import Svg, { Circle, Path } from 'react-native-svg';
 import * as Notifications from 'expo-notifications';
 import { Screen, ScreenTitle, Subtle } from '../../components/ui';
-import { NavoMark } from '../../components/NavoMark';
 import { armDestinationAlarm, disarmDestinationAlarm } from '../../domain/destination-alarm';
 import type { DestinationAlarm, SavedDestination } from '../../domain/models';
 import { beginBackgroundLocation, stopBackgroundLocationIfIdle } from '../../services/background-location';
@@ -37,13 +37,20 @@ function alarmStatus(
   return { label: 'Monitoring', detail, tone: 'success' };
 }
 
+type DestinationModalState = {
+  mode: 'options' | 'remove';
+  destination: SavedDestination;
+} | null;
+
 export default function RideHomeScreen() {
   const colors = useNavoColors();
   const app = useAppState();
   const guide = useGuideControls();
   const [busyAlarmId, setBusyAlarmId] = useState<string | null>(null);
+  const [pressedDestinationId, setPressedDestinationId] = useState<string | null>(null);
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [permissionSummary, setPermissionSummary] = useState<AlarmPermissionSummary | null>(null);
+  const [destinationModal, setDestinationModal] = useState<DestinationModalState>(null);
   const screenScrollRef = useRef<ScrollViewInstance>(null);
 
   const refreshPermissions = useCallback(() => {
@@ -149,19 +156,22 @@ export default function RideHomeScreen() {
     }
   };
 
-  const confirmRemove = (destination: SavedDestination) => {
-    Alert.alert('Remove this destination?', 'Its saved alarm will also be removed.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => { void removeDestination(destination); } },
-    ]);
+  const showOptions = (destination: SavedDestination) => {
+    setDestinationModal({ mode: 'options', destination });
   };
 
-  const showOptions = (destination: SavedDestination) => {
-    Alert.alert(destination.name, 'Destination options', [
-      { text: 'Edit alarm', onPress: () => router.push({ pathname: '/destination/pick', params: { destinationId: destination.id } }) },
-      { text: 'Remove destination', style: 'destructive', onPress: () => confirmRemove(destination) },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+  const editDestination = (destination: SavedDestination) => {
+    setDestinationModal(null);
+    router.push({ pathname: '/destination/pick', params: { destinationId: destination.id } });
+  };
+
+  const requestDestinationRemoval = (destination: SavedDestination) => {
+    setDestinationModal({ mode: 'remove', destination });
+  };
+
+  const confirmDestinationRemoval = (destination: SavedDestination) => {
+    setDestinationModal(null);
+    void removeDestination(destination);
   };
 
   const dismissNotice = () => {
@@ -184,10 +194,24 @@ export default function RideHomeScreen() {
 
   return (
     <Screen tabBar scrollRef={screenScrollRef}>
-      <View style={styles.brandRow}>
-        <View style={styles.brandName}><NavoMark size={34} /><Text style={[styles.wordmark, { color: colors.ink }]}>Navo</Text></View>
-        {app.firstRun.preferences.displayName ? <Text style={[styles.greeting, { color: colors.muted }]}>Hi, {app.firstRun.preferences.displayName.trim().split(/\s+/)[0]}</Text> : null}
-      </View>
+      {app.firstRun.preferences.displayName || app.destinations.length > 0 ? (
+        <View style={styles.greetingRow}>
+          {app.firstRun.preferences.displayName ? <Text style={[styles.greeting, { color: colors.muted }]}>Hi, {app.firstRun.preferences.displayName.trim().split(/\s+/)[0]}</Text> : <View style={styles.greetingSpacer} />}
+          {app.destinations.length > 0 ? (
+            <GuideTarget id="add-alarm" style={styles.addAlarmTopTarget}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={openPicker}
+                android_ripple={{ color: colors.accentHover, foreground: true, alpha: 0.32 }}
+                style={({ pressed }) => [styles.addButton, { backgroundColor: pressed ? colors.accentHover : colors.accent }]}
+              >
+                <Feather name="plus" size={17} color={colors.onAccent} />
+                <Text style={[styles.addButtonText, { color: colors.onAccent }]}>Add alarm</Text>
+              </Pressable>
+            </GuideTarget>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={styles.titleBlock}>
         <ScreenTitle>Saved alarms</ScreenTitle>
@@ -195,7 +219,7 @@ export default function RideHomeScreen() {
       </View>
 
       {app.activeTrip && app.activeRoute ? (
-        <Pressable accessibilityRole="button" onPress={() => router.push('/trip/active')} style={({ pressed }) => [styles.tripCard, { backgroundColor: colors.accentSoft, opacity: pressed ? 0.82 : 1 }]}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/trip/active')} style={({ pressed }) => [styles.tripCard, { backgroundColor: pressed ? colors.accentHoverSoft : colors.accentSoft, borderColor: pressed ? colors.accent : 'transparent' }]}>
           <View style={[styles.tripIcon, { backgroundColor: colors.surface }]}><Feather name="navigation" size={17} color={colors.accent} /></View>
           <View style={styles.tripCopy}>
             <Text style={[styles.tripTitle, { color: colors.ink }]}>Trip in progress</Text>
@@ -219,7 +243,7 @@ export default function RideHomeScreen() {
               <Subtle>Add a rail station, bus stop, or place. Your saved alarms will appear here.</Subtle>
             </View>
             <GuideTarget id="add-alarm" style={styles.addAlarmTarget}>
-              <Pressable accessibilityRole="button" onPress={openPicker} style={({ pressed }) => [styles.primaryAction, { backgroundColor: colors.accent, opacity: pressed ? 0.84 : 1 }]}>
+              <Pressable accessibilityRole="button" onPress={openPicker} style={({ pressed }) => [styles.primaryAction, { backgroundColor: pressed ? colors.accentHover : colors.accent }]}>
                 <Feather name="plus" size={17} color={colors.onAccent} />
                 <Text style={[styles.primaryActionText, { color: colors.onAccent }]}>Create my first alarm</Text>
               </Pressable>
@@ -233,9 +257,20 @@ export default function RideHomeScreen() {
             const status = alarmStatus(alarm, app.lastLocationAt, app.locationProblem);
             const isBusy = busyAlarmId === alarm?.id || busyAlarmId === destination.id;
             const card = (
-              <View style={[styles.destinationCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+              <View
+                onTouchStart={() => setPressedDestinationId(destination.id)}
+                onTouchEnd={() => setPressedDestinationId(null)}
+                onTouchCancel={() => setPressedDestinationId(null)}
+                style={[
+                  styles.destinationCard,
+                  {
+                    backgroundColor: pressedDestinationId === destination.id ? colors.accentSoft : colors.surface,
+                    borderColor: pressedDestinationId === destination.id ? colors.accent : colors.line,
+                  },
+                ]}
+              >
                 <View style={styles.cardTop}>
-                  <Pressable accessibilityRole="button" accessibilityLabel={`Edit alarm for ${destination.name}`} onPress={() => { if (guide.visible) guide.finishGuide(); router.push({ pathname: '/destination/pick', params: { destinationId: destination.id } }); }} style={styles.destinationMain}>
+                  <NativePressable accessibilityRole="button" accessibilityLabel={`Edit alarm for ${destination.name}`} onPress={() => { if (guide.visible) guide.finishGuide(); router.push({ pathname: '/destination/pick', params: { destinationId: destination.id } }); }} style={styles.destinationMain}>
                     <View style={[styles.destinationIcon, { backgroundColor: colors.accentSoft }]}>
                       <Feather name={destination.kind === 'rail-station' ? 'navigation' : destination.kind === 'bus-dropoff' ? 'truck' : 'map-pin'} size={17} color={colors.accent} />
                     </View>
@@ -244,7 +279,7 @@ export default function RideHomeScreen() {
                       <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.destinationName, { color: colors.ink }]}>{destination.name}</Text>
                       <Text numberOfLines={1} style={[styles.destinationSubtitle, { color: colors.muted }]}>{destination.subtitle || (destination.source === 'map-pin' ? 'Pinned location' : 'Place selected from search')}</Text>
                     </View>
-                  </Pressable>
+                  </NativePressable>
                   <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${destination.name}`} onPress={() => { if (guide.visible) guide.finishGuide(); showOptions(destination); }} hitSlop={6} style={styles.moreButton}>
                     <Feather name="more-vertical" size={18} color={colors.muted} />
                   </Pressable>
@@ -271,12 +306,6 @@ export default function RideHomeScreen() {
               ? <GuideTarget key={destination.id} id="saved-alarms" style={styles.cardTarget}>{card}</GuideTarget>
               : <View key={destination.id}>{card}</View>;
           })}
-          <GuideTarget id="add-alarm" style={styles.addAlarmTarget}>
-            <Pressable accessibilityRole="button" onPress={openPicker} style={({ pressed }) => [styles.addButton, { backgroundColor: colors.accent, opacity: pressed ? 0.84 : 1 }]}>
-              <Feather name="plus" size={17} color={colors.onAccent} />
-              <Text style={[styles.addButtonText, { color: colors.onAccent }]}>Add alarm</Text>
-            </Pressable>
-          </GuideTarget>
         </View>
       )}
 
@@ -292,7 +321,7 @@ export default function RideHomeScreen() {
       ) : null}
 
       {app.destinations.length > 0 && !app.firstRun.guideCompleted ? (
-        <Pressable accessibilityRole="button" onPress={guide.startGuide} style={({ pressed }) => [styles.quickTour, { backgroundColor: colors.raised, opacity: pressed ? 0.82 : 1 }]}>
+        <Pressable accessibilityRole="button" onPress={guide.startGuide} style={({ pressed }) => [styles.quickTour, { backgroundColor: pressed ? colors.accentHoverSoft : colors.raised, borderColor: pressed ? colors.accent : 'transparent' }]}>
           <View style={[styles.quickTourIcon, { backgroundColor: colors.accentSoft }]}><Feather name="help-circle" size={17} color={colors.accent} /></View>
           <View style={styles.tripCopy}>
             <Text style={[styles.tripTitle, { color: colors.ink }]}>A quick tour?</Text>
@@ -315,6 +344,75 @@ export default function RideHomeScreen() {
       ) : null}
 
       {actionProblem ? <Text accessibilityRole="alert" style={[styles.actionProblem, { color: colors.danger }]}>{actionProblem}</Text> : null}
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setDestinationModal(null)}
+        transparent
+        visible={destinationModal !== null}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss dialog" onPress={() => setDestinationModal(null)} style={StyleSheet.absoluteFill} />
+          {destinationModal ? (
+            <View accessibilityViewIsModal style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+              <View style={styles.modalHeading}>
+                <View style={[styles.modalIcon, { backgroundColor: destinationModal.mode === 'remove' ? colors.dangerSoft : colors.accentSoft }]}>
+                  <Feather
+                    name={destinationModal.mode === 'remove' ? 'trash-2' : destinationModal.destination.kind === 'rail-station' ? 'navigation' : destinationModal.destination.kind === 'bus-dropoff' ? 'truck' : 'map-pin'}
+                    size={19}
+                    color={destinationModal.mode === 'remove' ? colors.danger : colors.accent}
+                  />
+                </View>
+                <View style={styles.modalHeadingCopy}>
+                  <Text style={[styles.modalEyebrow, { color: destinationModal.mode === 'remove' ? colors.danger : colors.accent }]}>
+                    {destinationModal.mode === 'remove' ? 'REMOVE DESTINATION' : `${destinationType(destinationModal.destination).toUpperCase()} DESTINATION`}
+                  </Text>
+                  <Text accessibilityRole="header" numberOfLines={2} style={[styles.modalTitle, { color: colors.ink }]}>
+                    {destinationModal.mode === 'remove' ? 'Remove this destination?' : destinationModal.destination.name}
+                  </Text>
+                  <Text numberOfLines={2} style={[styles.modalSubtitle, { color: colors.muted }]}>
+                    {destinationModal.mode === 'remove'
+                      ? `“${destinationModal.destination.name}” and its saved alarm will be removed from this device.`
+                      : destinationModal.destination.subtitle || 'Manage this saved destination and its alarm.'}
+                  </Text>
+                </View>
+                <Pressable accessibilityRole="button" accessibilityLabel="Close dialog" onPress={() => setDestinationModal(null)} style={styles.modalClose}>
+                  <Feather name="x" size={19} color={colors.muted} />
+                </Pressable>
+              </View>
+
+              <View style={[styles.modalDivider, { backgroundColor: colors.line }]} />
+
+              {destinationModal.mode === 'options' ? (
+                <View style={styles.modalActions}>
+                  <Pressable accessibilityRole="button" onPress={() => editDestination(destinationModal.destination)} style={({ pressed }) => [styles.modalPrimary, { backgroundColor: pressed ? colors.accentHover : colors.accent }]}>
+                    <Feather name="edit-2" size={17} color={colors.onAccent} />
+                    <Text style={[styles.modalPrimaryText, { color: colors.onAccent }]}>Edit alarm</Text>
+                    <Feather name="arrow-right" size={16} color={colors.onAccent} />
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => requestDestinationRemoval(destinationModal.destination)} style={({ pressed }) => [styles.modalDestructive, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}>
+                    <Feather name="trash-2" size={17} color={colors.danger} />
+                    <Text style={[styles.modalDestructiveText, { color: colors.danger }]}>Remove destination</Text>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => setDestinationModal(null)} style={styles.modalCancel}>
+                    <Text style={[styles.modalCancelText, { color: colors.muted }]}>Cancel</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={styles.modalActions}>
+                  <Pressable accessibilityRole="button" onPress={() => confirmDestinationRemoval(destinationModal.destination)} style={({ pressed }) => [styles.modalPrimary, { backgroundColor: pressed ? colors.dangerHover : colors.danger }]}>
+                    <Feather name="trash-2" size={17} color={colors.onAccent} />
+                    <Text style={[styles.modalPrimaryText, { color: colors.onAccent }]}>Remove destination</Text>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => setDestinationModal(null)} style={[styles.modalKeep, { borderColor: colors.line }]}>
+                    <Text style={[styles.modalKeepText, { color: colors.ink }]}>Keep destination</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          ) : null}
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -336,10 +434,9 @@ function EmptyRouteArtwork() {
 }
 
 const styles = StyleSheet.create({
-  brandRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brandName: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  wordmark: { fontSize: 19, fontWeight: '700', letterSpacing: -0.4 },
-  greeting: { fontSize: 12, fontWeight: '600' },
+  greetingRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  greetingSpacer: { flex: 1 },
+  greeting: { flex: 1, flexShrink: 1, fontSize: 12, fontWeight: '600' },
   titleBlock: { gap: 3 },
   count: { fontSize: 12, fontWeight: '600' },
   tripCard: { minHeight: 60, borderRadius: 14, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -356,11 +453,12 @@ const styles = StyleSheet.create({
   emptyCopy: { gap: 4, paddingHorizontal: 1 },
   emptySubTitle: { fontSize: 16, lineHeight: 22, fontWeight: '700' },
   addAlarmTarget: { width: '100%' },
-  primaryAction: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch', gap: 8, borderRadius: 13 },
+  addAlarmTopTarget: { flexShrink: 0 },
+  primaryAction: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch', gap: 8, borderRadius: 13, overflow: 'hidden' },
   primaryActionText: { fontSize: 14, fontWeight: '700' },
   alarmList: { gap: 9 },
   cardTarget: { width: '100%' },
-  destinationCard: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8 },
+  destinationCard: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8, overflow: 'hidden' },
   cardTop: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 4 },
   destinationMain: { flex: 1, minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10 },
   destinationIcon: { width: 37, height: 37, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
@@ -374,7 +472,7 @@ const styles = StyleSheet.create({
   alarmState: { fontSize: 11, lineHeight: 16, fontWeight: '700' },
   statusDetail: { fontSize: 10, lineHeight: 14 },
   switchBusy: { width: 48, height: 44 },
-  addButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 13 },
+  addButton: { minHeight: 44, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 13, overflow: 'hidden' },
   addButtonText: { fontSize: 14, fontWeight: '700' },
   permissionNotice: { gap: 8, padding: 12, borderRadius: 14, borderWidth: 1 },
   permissionTitle: { fontSize: 13, fontWeight: '700' },
@@ -386,4 +484,23 @@ const styles = StyleSheet.create({
   notice: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 9, paddingLeft: 11, paddingRight: 5, borderRadius: 12 },
   dismissButton: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
   actionProblem: { fontSize: 13, lineHeight: 19 },
+  modalRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, backgroundColor: 'rgba(5, 12, 23, 0.68)' },
+  modalCard: { width: '100%', maxWidth: 400, gap: 15, padding: 18, borderWidth: 1, borderRadius: 22, elevation: 20 },
+  modalHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  modalIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
+  modalHeadingCopy: { flex: 1, gap: 4, paddingTop: 1 },
+  modalEyebrow: { fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.55 },
+  modalTitle: { fontSize: 18, lineHeight: 23, fontWeight: '700', letterSpacing: -0.2 },
+  modalSubtitle: { fontSize: 12, lineHeight: 17 },
+  modalClose: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  modalDivider: { height: StyleSheet.hairlineWidth },
+  modalActions: { gap: 8 },
+  modalPrimary: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 14, borderRadius: 14 },
+  modalPrimaryText: { flex: 1, fontSize: 14, fontWeight: '700' },
+  modalDestructive: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, borderWidth: 1, borderRadius: 14 },
+  modalDestructiveText: { fontSize: 14, fontWeight: '700' },
+  modalCancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  modalCancelText: { fontSize: 13, fontWeight: '600' },
+  modalKeep: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 14 },
+  modalKeepText: { fontSize: 14, fontWeight: '700' },
 });

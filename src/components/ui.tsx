@@ -1,5 +1,6 @@
 import type { PropsWithChildren, ReactNode, Ref } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { NavoPressable as Pressable } from './NavoPressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { navoGradient, useNavoColors, spacing } from '../theme/colors';
@@ -54,7 +55,7 @@ export function PrimaryButton({ title, onPress, disabled, accessibilityLabel }: 
       accessibilityState={{ disabled: Boolean(disabled) }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.primaryButton, { backgroundColor: disabled ? colors.line : colors.accent, opacity: pressed ? 0.82 : 1 }]}
+      style={({ pressed }) => [styles.primaryButton, { backgroundColor: disabled ? colors.line : pressed ? colors.accentHover : colors.accent }]}
     >
       <Text style={[styles.primaryText, { color: disabled ? colors.quiet : colors.onAccent }]}>{title}</Text>
     </Pressable>
@@ -70,7 +71,7 @@ export function SecondaryButton({ title, onPress, disabled, accessibilityLabel }
       accessibilityState={{ disabled: Boolean(disabled) }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => [styles.secondaryButton, { borderColor: colors.line, opacity: pressed ? 0.7 : 1 }]}
+      style={({ pressed }) => [styles.secondaryButton, { borderColor: pressed ? colors.accentHover : colors.line }]}
     >
       <Text style={[styles.secondaryText, { color: colors.ink }]}>{title}</Text>
     </Pressable>

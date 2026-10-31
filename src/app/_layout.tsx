@@ -5,11 +5,14 @@ import { Appearance, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { AppStateProvider, useAppState } from '../state/AppStateProvider';
 import { useNavoColors } from '../theme/colors';
+import { OfflineManager } from '@maplibre/maplibre-react-native';
 import { deliverPendingDestinationAlarmEvents } from '../services/background-location';
 import * as Notifications from 'expo-notifications';
 import { LEGAL_DOCUMENT_VERSION } from '../data/legal';
 import { GuideTargetsProvider } from '../components/guide/GuideTargets';
 import { InAppGuide } from '../components/guide/InAppGuide';
+
+const MAX_AMBIENT_MAP_CACHE_BYTES = 32 * 1024 * 1024;
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -60,6 +63,13 @@ function RootNavigator() {
   }, [app.ready, app.storageProblem]);
   useEffect(() => {
     if (app.ready) void deliverPendingDestinationAlarmEvents();
+  }, [app.ready]);
+  useEffect(() => {
+    if (!app.ready) return;
+    const timer = setTimeout(() => {
+      void OfflineManager.setMaximumAmbientCacheSize(MAX_AMBIENT_MAP_CACHE_BYTES).catch(() => undefined);
+    }, 5_000);
+    return () => clearTimeout(timer);
   }, [app.ready]);
 
   return (

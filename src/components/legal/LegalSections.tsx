@@ -1,5 +1,6 @@
-import { Feather } from '@expo/vector-icons';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { Linking, StyleSheet, Text, View } from 'react-native';
+import { NavoPressable as Pressable } from '../NavoPressable';
 import type { LegalSection } from '../../data/legal';
 import { useNavoColors } from '../../theme/colors';
 

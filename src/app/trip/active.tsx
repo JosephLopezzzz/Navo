@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
-import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, StyleSheet, Text, View } from 'react-native';
+import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import { router, useFocusEffect } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import * as Notifications from 'expo-notifications';
 import { DataSeal, Divider, PrimaryButton, RouteLine, Screen, ScreenTitle, SecondaryButton, Subtle } from '../../components/ui';
 import { distanceBetweenMeters, manuallyConfirmNextStop } from '../../domain/trip-engine';

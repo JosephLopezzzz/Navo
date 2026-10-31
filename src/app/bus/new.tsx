@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { NavoPressable as Pressable } from '../../components/NavoPressable';
+import Feather from '@expo/vector-icons/Feather';
 import { Body, DataSeal, PrimaryButton, Screen, ScreenTitle, SectionTitle, Subtle } from '../../components/ui';
 import type { Stop, TransitRoute } from '../../domain/models';
 import { recordCurrentStop } from '../../services/background-location';

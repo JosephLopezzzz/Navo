@@ -4,7 +4,7 @@
 
 ## Platform
 
-Adaptive mobile app
+adaptive
 
 ## Stack
 

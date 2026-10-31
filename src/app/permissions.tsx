@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import { AppState, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { AppState, Linking, StyleSheet, Text, View } from 'react-native';
+import { NavoPressable as Pressable } from '../components/NavoPressable';
 import { PrimaryButton, Screen, ScreenTitle, Subtle } from '../components/ui';
 import { readAlarmPermissions, type AlarmPermissionSummary } from '../services/alarm-permissions';
 import { useNavoColors } from '../theme/colors';

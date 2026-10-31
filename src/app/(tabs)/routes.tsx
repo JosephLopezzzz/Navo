@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { NavoMark } from '../../components/NavoMark';
+import Feather from '@expo/vector-icons/Feather';
+import { StyleSheet, Text, View } from 'react-native';
+import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import { DataSeal, Divider, Screen, ScreenTitle, Subtle } from '../../components/ui';
 import { railLines } from '../../data/routes';
 import { useAppState } from '../../state/AppStateProvider';
@@ -13,10 +13,7 @@ export default function RoutesScreen() {
   const { customBusRoutes } = app;
   return (
     <Screen tabBar>
-      <View style={styles.brandRow}>
-        <View style={styles.brandName}><NavoMark size={32} /><Text style={[styles.wordmark, { color: colors.ink }]}>Navo</Text></View>
-        {app.firstRun.preferences.displayName ? <Text style={[styles.greeting, { color: colors.muted }]}>Hi, {app.firstRun.preferences.displayName.trim().split(/\s+/)[0]}</Text> : null}
-      </View>
+      {app.firstRun.preferences.displayName ? <Text style={[styles.greeting, { color: colors.muted }]}>Hi, {app.firstRun.preferences.displayName.trim().split(/\s+/)[0]}</Text> : null}
 
       <View style={styles.intro}>
         <Text style={[styles.eyebrow, { color: colors.accent }]}>YOUR NEXT TRIP</Text>
@@ -31,7 +28,7 @@ export default function RoutesScreen() {
       <View style={[styles.lineList, { backgroundColor: colors.surface, borderColor: colors.line }]}>
         {railLines.map((line, index) => (
           <View key={line.id}>
-            <Pressable accessibilityRole="button" onPress={() => router.push(`/trip/setup?lineId=${line.id}`)} style={({ pressed }) => [styles.lineRow, { opacity: pressed ? 0.76 : 1 }]}>
+            <Pressable accessibilityRole="button" onPress={() => router.push(`/trip/setup?lineId=${line.id}`)} style={({ pressed }) => [styles.lineRow, pressed && { borderWidth: 1, borderColor: colors.accent }]}>
               <View style={[styles.lineIcon, { backgroundColor: colors.accentSoft }]}><Feather name="navigation" size={17} color={colors.accent} /></View>
               <View style={styles.lineCopy}>
                 <View style={styles.lineNameRow}>
@@ -75,9 +72,6 @@ export default function RoutesScreen() {
 }
 
 const styles = StyleSheet.create({
-  brandRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brandName: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  wordmark: { fontSize: 18, fontWeight: '700', letterSpacing: -0.35 },
   greeting: { fontSize: 12, fontWeight: '600' },
   intro: { gap: 5 },
   eyebrow: { fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.45 },

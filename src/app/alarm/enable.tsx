@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { StyleSheet, Text, View } from 'react-native';
+import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import { PrimaryButton, Screen, ScreenTitle, Subtle } from '../../components/ui';
 import { armDestinationAlarm, disarmDestinationAlarm } from '../../domain/destination-alarm';
 import { beginBackgroundLocation } from '../../services/background-location';

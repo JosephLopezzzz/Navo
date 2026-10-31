@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
-import { Feather } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent, type ViewInstance } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { Pressable as NativePressable, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent, type ViewInstance } from 'react-native';
+import { NavoPressable as Pressable } from '../NavoPressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGuideControls, useGuideTargets, type GuideTargetId } from './GuideTargets';
 import { useNavoColors } from '../../theme/colors';
@@ -85,13 +86,13 @@ export function InAppGuide() {
     >
       {cutout ? (
         <>
-          <Pressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: 0, top: 0, right: 0, height: Math.max(0, cutout.y) }]} />
-          <Pressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: 0, top: cutout.y, width: Math.max(0, cutout.x), height: cutout.height }]} />
-          <Pressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: cutout.x + cutout.width, top: cutout.y, right: 0, height: cutout.height }]} />
-          <Pressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: 0, top: cutout.y + cutout.height, right: 0, bottom: 0 }]} />
+          <NativePressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: 0, top: 0, right: 0, height: Math.max(0, cutout.y) }]} />
+          <NativePressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: 0, top: cutout.y, width: Math.max(0, cutout.x), height: cutout.height }]} />
+          <NativePressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: cutout.x + cutout.width, top: cutout.y, right: 0, height: cutout.height }]} />
+          <NativePressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, { left: 0, top: cutout.y + cutout.height, right: 0, bottom: 0 }]} />
           <View pointerEvents="none" style={[styles.cutout, { left: cutout.x, top: cutout.y, width: cutout.width, height: cutout.height, borderColor: colors.aqua }]} />
         </>
-      ) : <Pressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, StyleSheet.absoluteFill]} />}
+      ) : <NativePressable accessibilityElementsHidden onPress={() => undefined} style={[styles.shade, StyleSheet.absoluteFill]} />}
 
       <View
         accessibilityLabel={`In-app guide, step ${index + 1} of ${steps.length}`}

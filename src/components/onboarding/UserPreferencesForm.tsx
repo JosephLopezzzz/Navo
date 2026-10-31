@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Feather } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { NavoPressable as Pressable } from '../NavoPressable';
 import { PrimaryButton, Screen, Subtle } from '../ui';
 import { NavoMark } from '../NavoMark';
 import { railLines } from '../../data/routes';

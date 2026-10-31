@@ -67,7 +67,8 @@
           "backgroundColor": "#07182F"
         }
       ],
-      "@maplibre/maplibre-react-native"
+      "@maplibre/maplibre-react-native",
+      "expo-sqlite"
     ],
     "extra": {
       "eas": {

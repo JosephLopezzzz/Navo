@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { AppState } from 'react-native';
 import { defaultFirstRunState, defaultSettings, readAppState, updateAppState, type StoredAppState } from '../services/storage';
 
@@ -11,17 +11,36 @@ interface AppStateContextValue extends StoredAppState {
 }
 const AppStateContext = createContext<AppStateContextValue | null>(null);
 const STORAGE_PROBLEM = 'Saved trip data could not be read from this device. Check available storage and try again.';
+const STORAGE_TIMEOUT = 'Saved trip data is taking longer than expected to load. Check available storage and try again.';
+const STORAGE_TIMEOUT_MS = 12_000;
+
+async function readAppStateWithTimeout(): Promise<StoredAppState> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      readAppState(),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('NAVO_STORAGE_TIMEOUT')), STORAGE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
 
 export function AppStateProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<StoredAppState | null>(null);
   const [storageProblem, setStorageProblem] = useState<string | null>(null);
+  const hasLoadedState = useRef(false);
 
   const refreshState = useCallback(async () => {
     try {
-      setState(await readAppState());
+      setState(await readAppStateWithTimeout());
+      hasLoadedState.current = true;
       setStorageProblem(null);
-    } catch {
-      setStorageProblem(STORAGE_PROBLEM);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'NAVO_STORAGE_TIMEOUT' && hasLoadedState.current) return;
+      setStorageProblem(error instanceof Error && error.message === 'NAVO_STORAGE_TIMEOUT' ? STORAGE_TIMEOUT : STORAGE_PROBLEM);
     }
   }, []);
 
@@ -30,6 +49,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
       await updateAppState(mutate);
       const latest = await readAppState();
       setState(latest);
+      hasLoadedState.current = true;
       setStorageProblem(null);
       return latest;
     } catch (error) {
@@ -48,15 +68,19 @@ export function AppStateProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let mounted = true;
+    const timeout = setTimeout(() => {
+      if (mounted && !hasLoadedState.current) setStorageProblem(STORAGE_TIMEOUT);
+    }, STORAGE_TIMEOUT_MS);
     void readAppState().then((saved) => {
       if (mounted) {
         setState(saved);
+        hasLoadedState.current = true;
         setStorageProblem(null);
       }
     }).catch(() => {
-      if (mounted) setStorageProblem(STORAGE_PROBLEM);
-    });
-    return () => { mounted = false; };
+      if (mounted && !hasLoadedState.current) setStorageProblem(STORAGE_PROBLEM);
+    }).finally(() => clearTimeout(timeout));
+    return () => { mounted = false; clearTimeout(timeout); };
   }, []);
 
   useEffect(() => {
