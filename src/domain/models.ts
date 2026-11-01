@@ -1,3 +1,5 @@
+import type { AlarmToneId } from './alarm-tones';
+
 export type TransitMode = 'rail' | 'bus';
 export type RouteDataQuality = 'preview' | 'user-authored';
 export type CoordinateStatus = 'missing' | 'complete';
@@ -63,6 +65,7 @@ export type DestinationWatchState = 'off' | 'awaiting-exit' | 'monitoring' | 'al
 export interface DestinationAlarm {
   id: string;
   destinationId: string;
+  ringtoneId: AlarmToneId;
   enabled: boolean;
   radiusM: number;
   watchState: DestinationWatchState;

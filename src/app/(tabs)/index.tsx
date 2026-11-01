@@ -2,11 +2,14 @@ import { router, useFocusEffect } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Linking, Modal, Pressable as NativePressable, StyleSheet, Switch, Text, View, type ScrollViewInstance } from 'react-native';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import Svg, { Circle, Path } from 'react-native-svg';
 import * as Notifications from 'expo-notifications';
 import { Screen, ScreenTitle, Subtle } from '../../components/ui';
 import { armDestinationAlarm, disarmDestinationAlarm } from '../../domain/destination-alarm';
+import { ALARM_TONES, getAlarmTone, type AlarmToneId } from '../../domain/alarm-tones';
+import { ALARM_TONE_PREVIEWS } from '../../data/alarm-tone-previews';
 import type { DestinationAlarm, SavedDestination } from '../../domain/models';
 import { beginBackgroundLocation, stopBackgroundLocationIfIdle } from '../../services/background-location';
 import { createPlacesSearchSessionId } from '../../services/tomtom';
@@ -38,7 +41,7 @@ function alarmStatus(
 }
 
 type DestinationModalState = {
-  mode: 'options' | 'remove';
+  mode: 'options' | 'remove' | 'sound';
   destination: SavedDestination;
 } | null;
 
@@ -51,6 +54,12 @@ export default function RideHomeScreen() {
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [permissionSummary, setPermissionSummary] = useState<AlarmPermissionSummary | null>(null);
   const [destinationModal, setDestinationModal] = useState<DestinationModalState>(null);
+  const [pendingToneId, setPendingToneId] = useState<AlarmToneId>(ALARM_TONES[0].id);
+  const [previewingToneId, setPreviewingToneId] = useState<AlarmToneId | null>(null);
+  const [savingTone, setSavingTone] = useState(false);
+  const [toneSaveProblem, setToneSaveProblem] = useState<string | null>(null);
+  const audioPlayer = useAudioPlayer(null);
+  const audioStatus = useAudioPlayerStatus(audioPlayer);
   const screenScrollRef = useRef<ScrollViewInstance>(null);
 
   const refreshPermissions = useCallback(() => {
@@ -157,20 +166,73 @@ export default function RideHomeScreen() {
   };
 
   const showOptions = (destination: SavedDestination) => {
+    audioPlayer.pause();
+    setPreviewingToneId(null);
     setDestinationModal({ mode: 'options', destination });
   };
 
-  const editDestination = (destination: SavedDestination) => {
+  const closeDestinationModal = () => {
+    audioPlayer.pause();
+    setPreviewingToneId(null);
     setDestinationModal(null);
+  };
+
+  const showTonePicker = (destination: SavedDestination) => {
+    const alarm = app.destinationAlarms.find((item) => item.destinationId === destination.id);
+    setPendingToneId(getAlarmTone(alarm?.ringtoneId).id);
+    setToneSaveProblem(null);
+    setDestinationModal({ mode: 'sound', destination });
+  };
+
+  const previewTone = (toneId: AlarmToneId) => {
+    const previewAsset = ALARM_TONE_PREVIEWS[toneId];
+    if (!previewAsset) return;
+    if (previewingToneId === toneId && audioStatus.playing) {
+      audioPlayer.pause();
+      return;
+    }
+    setPreviewingToneId(toneId);
+    audioPlayer.replace(previewAsset);
+    audioPlayer.play();
+  };
+
+  const saveTone = async () => {
+    if (destinationModal?.mode !== 'sound') return;
+    const alarm = app.destinationAlarms.find((item) => item.destinationId === destinationModal.destination.id);
+    if (!alarm) {
+      setToneSaveProblem('This saved alarm is no longer available.');
+      return;
+    }
+    setSavingTone(true);
+    setToneSaveProblem(null);
+    try {
+      await app.mutateState((current) => ({
+        ...current,
+        destinationAlarms: current.destinationAlarms.map((item) => item.id === alarm.id
+          ? { ...item, ringtoneId: pendingToneId }
+          : item),
+      }));
+      closeDestinationModal();
+    } catch {
+      setToneSaveProblem('Navo could not save that alarm sound. Try again.');
+    } finally {
+      setSavingTone(false);
+    }
+  };
+
+  const editDestination = (destination: SavedDestination) => {
+    closeDestinationModal();
     router.push({ pathname: '/destination/pick', params: { destinationId: destination.id } });
   };
 
   const requestDestinationRemoval = (destination: SavedDestination) => {
+    audioPlayer.pause();
+    setPreviewingToneId(null);
     setDestinationModal({ mode: 'remove', destination });
   };
 
   const confirmDestinationRemoval = (destination: SavedDestination) => {
-    setDestinationModal(null);
+    closeDestinationModal();
     void removeDestination(destination);
   };
 
@@ -288,6 +350,17 @@ export default function RideHomeScreen() {
                   <View style={styles.alarmStateCopy}>
                     <Text style={[styles.alarmState, { color: alarm?.enabled ? colors.success : colors.muted }]}>{alarm?.enabled ? 'On · alerts near this stop' : 'Off'}</Text>
                     {status ? <Text numberOfLines={2} style={[styles.statusDetail, { color: colors.muted }]}>{status.label === 'Monitoring' ? status.detail : `${status.label} · ${status.detail}`}</Text> : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={'Alarm sound for ' + destination.name + ': ' + getAlarmTone(alarm?.ringtoneId).label}
+                      accessibilityHint="Choose and preview the sound for this destination alarm."
+                      onPress={() => showTonePicker(destination)}
+                      style={styles.soundShortcut}
+                    >
+                      <Feather name="volume-2" size={13} color={colors.accent} />
+                      <Text numberOfLines={1} style={[styles.soundShortcutText, { color: colors.accent }]}>Sound · {getAlarmTone(alarm?.ringtoneId).label}</Text>
+                      <Feather name="chevron-right" size={13} color={colors.accent} />
+                    </Pressable>
                   </View>
                   {isBusy ? <ActivityIndicator accessibilityLabel="Updating alarm" color={colors.accent} style={styles.switchBusy} /> : (
                     <Switch
@@ -347,36 +420,38 @@ export default function RideHomeScreen() {
 
       <Modal
         animationType="fade"
-        onRequestClose={() => setDestinationModal(null)}
+        onRequestClose={closeDestinationModal}
         transparent
         visible={destinationModal !== null}
       >
         <View style={styles.modalRoot}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss dialog" onPress={() => setDestinationModal(null)} style={StyleSheet.absoluteFill} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss dialog" onPress={closeDestinationModal} style={StyleSheet.absoluteFill} />
           {destinationModal ? (
             <View accessibilityViewIsModal style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
               <View style={styles.modalHeading}>
                 <View style={[styles.modalIcon, { backgroundColor: destinationModal.mode === 'remove' ? colors.dangerSoft : colors.accentSoft }]}>
                   <Feather
-                    name={destinationModal.mode === 'remove' ? 'trash-2' : destinationModal.destination.kind === 'rail-station' ? 'navigation' : destinationModal.destination.kind === 'bus-dropoff' ? 'truck' : 'map-pin'}
+                    name={destinationModal.mode === 'remove' ? 'trash-2' : destinationModal.mode === 'sound' ? 'volume-2' : destinationModal.destination.kind === 'rail-station' ? 'navigation' : destinationModal.destination.kind === 'bus-dropoff' ? 'truck' : 'map-pin'}
                     size={19}
                     color={destinationModal.mode === 'remove' ? colors.danger : colors.accent}
                   />
                 </View>
                 <View style={styles.modalHeadingCopy}>
                   <Text style={[styles.modalEyebrow, { color: destinationModal.mode === 'remove' ? colors.danger : colors.accent }]}>
-                    {destinationModal.mode === 'remove' ? 'REMOVE DESTINATION' : `${destinationType(destinationModal.destination).toUpperCase()} DESTINATION`}
+                    {destinationModal.mode === 'remove' ? 'REMOVE DESTINATION' : destinationModal.mode === 'sound' ? 'ALARM SOUND' : `${destinationType(destinationModal.destination).toUpperCase()} DESTINATION`}
                   </Text>
                   <Text accessibilityRole="header" numberOfLines={2} style={[styles.modalTitle, { color: colors.ink }]}>
-                    {destinationModal.mode === 'remove' ? 'Remove this destination?' : destinationModal.destination.name}
+                    {destinationModal.mode === 'remove' ? 'Remove this destination?' : destinationModal.mode === 'sound' ? 'Choose a sound' : destinationModal.destination.name}
                   </Text>
                   <Text numberOfLines={2} style={[styles.modalSubtitle, { color: colors.muted }]}>
                     {destinationModal.mode === 'remove'
                       ? `“${destinationModal.destination.name}” and its saved alarm will be removed from this device.`
-                      : destinationModal.destination.subtitle || 'Manage this saved destination and its alarm.'}
+                      : destinationModal.mode === 'sound'
+                        ? 'For ' + destinationModal.destination.name + '. Preview a sound, then save your choice.'
+                        : destinationModal.destination.subtitle || 'Manage this saved destination and its alarm.'}
                   </Text>
                 </View>
-                <Pressable accessibilityRole="button" accessibilityLabel="Close dialog" onPress={() => setDestinationModal(null)} style={styles.modalClose}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Close dialog" onPress={closeDestinationModal} style={styles.modalClose}>
                   <Feather name="x" size={19} color={colors.muted} />
                 </Pressable>
               </View>
@@ -390,21 +465,76 @@ export default function RideHomeScreen() {
                     <Text style={[styles.modalPrimaryText, { color: colors.onAccent }]}>Edit alarm</Text>
                     <Feather name="arrow-right" size={16} color={colors.onAccent} />
                   </Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => showTonePicker(destinationModal.destination)} style={[styles.modalSoundAction, { borderColor: colors.line, backgroundColor: colors.raised }]}>
+                    <Feather name="volume-2" size={17} color={colors.accent} />
+                    <Text style={[styles.modalSoundActionText, { color: colors.ink }]}>Alarm sound · {getAlarmTone(app.destinationAlarms.find((item) => item.destinationId === destinationModal.destination.id)?.ringtoneId).label}</Text>
+                    <Feather name="chevron-right" size={16} color={colors.accent} />
+                  </Pressable>
                   <Pressable accessibilityRole="button" onPress={() => requestDestinationRemoval(destinationModal.destination)} style={({ pressed }) => [styles.modalDestructive, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}>
                     <Feather name="trash-2" size={17} color={colors.danger} />
                     <Text style={[styles.modalDestructiveText, { color: colors.danger }]}>Remove destination</Text>
                   </Pressable>
-                  <Pressable accessibilityRole="button" onPress={() => setDestinationModal(null)} style={styles.modalCancel}>
+                  <Pressable accessibilityRole="button" onPress={closeDestinationModal} style={styles.modalCancel}>
                     <Text style={[styles.modalCancelText, { color: colors.muted }]}>Cancel</Text>
                   </Pressable>
                 </View>
+              ) : destinationModal.mode === 'sound' ? (
+                <>
+                  <View style={styles.modalToneList}>
+                    {ALARM_TONES.map((tone) => {
+                      const selected = pendingToneId === tone.id;
+                      const isPreviewing = previewingToneId === tone.id && audioStatus.playing;
+                      const previewAsset = ALARM_TONE_PREVIEWS[tone.id];
+                      return (
+                        <View key={tone.id} style={[styles.toneOption, { borderColor: selected ? colors.accent : colors.line, backgroundColor: selected ? colors.accentSoft : colors.raised }]}>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={tone.label + (selected ? ', selected' : '')}
+                            accessibilityHint="Select this alarm sound."
+                            accessibilityState={{ selected }}
+                            onPress={() => setPendingToneId(tone.id)}
+                            style={styles.toneChoice}
+                          >
+                            <Feather name={selected ? 'check-circle' : 'circle'} size={19} color={selected ? colors.accent : colors.muted} />
+                            <View style={styles.toneCopy}>
+                              <Text style={[styles.toneTitle, { color: colors.ink }]}>{tone.label}</Text>
+                              <Text numberOfLines={1} style={[styles.toneDetail, { color: colors.muted }]}>{tone.detail}</Text>
+                            </View>
+                          </Pressable>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={previewAsset ? (isPreviewing ? 'Pause ' : 'Preview ') + tone.label : 'System default preview unavailable'}
+                            accessibilityHint={previewAsset ? 'Play a short sound sample.' : 'The phone’s notification sound is controlled by system settings.'}
+                            accessibilityState={{ disabled: !previewAsset }}
+                            disabled={!previewAsset}
+                            onPress={() => previewTone(tone.id)}
+                            style={[styles.previewButton, { backgroundColor: colors.surface, opacity: previewAsset ? 1 : 0.45 }]}
+                          >
+                            <Feather name={previewAsset ? isPreviewing ? 'pause' : 'play' : 'volume-1'} size={16} color={colors.accent} />
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                  </View>
+                  <Text style={[styles.toneNote, { color: colors.muted }]}>Your phone’s notification and Focus settings can still mute an alarm.</Text>
+                  {toneSaveProblem ? <Text accessibilityRole="alert" style={[styles.toneProblem, { color: colors.danger }]}>{toneSaveProblem}</Text> : null}
+                  <View style={styles.modalActions}>
+                    <Pressable accessibilityRole="button" disabled={savingTone} onPress={() => void saveTone()} style={({ pressed }) => [styles.modalPrimary, { backgroundColor: pressed ? colors.accentHover : colors.accent, opacity: savingTone ? 0.6 : 1 }]}>
+                      <Feather name="check" size={17} color={colors.onAccent} />
+                      <Text style={[styles.modalPrimaryText, { color: colors.onAccent }]}>{savingTone ? 'Saving sound…' : 'Save sound'}</Text>
+                    </Pressable>
+                    <Pressable accessibilityRole="button" disabled={savingTone} onPress={closeDestinationModal} style={styles.modalCancel}>
+                      <Text style={[styles.modalCancelText, { color: colors.muted }]}>Cancel</Text>
+                    </Pressable>
+                  </View>
+                </>
               ) : (
                 <View style={styles.modalActions}>
                   <Pressable accessibilityRole="button" onPress={() => confirmDestinationRemoval(destinationModal.destination)} style={({ pressed }) => [styles.modalPrimary, { backgroundColor: pressed ? colors.dangerHover : colors.danger }]}>
                     <Feather name="trash-2" size={17} color={colors.onAccent} />
                     <Text style={[styles.modalPrimaryText, { color: colors.onAccent }]}>Remove destination</Text>
                   </Pressable>
-                  <Pressable accessibilityRole="button" onPress={() => setDestinationModal(null)} style={[styles.modalKeep, { borderColor: colors.line }]}>
+                  <Pressable accessibilityRole="button" onPress={closeDestinationModal} style={[styles.modalKeep, { borderColor: colors.line }]}>
                     <Text style={[styles.modalKeepText, { color: colors.ink }]}>Keep destination</Text>
                   </Pressable>
                 </View>
@@ -471,6 +601,8 @@ const styles = StyleSheet.create({
   alarmStateCopy: { flex: 1, gap: 2 },
   alarmState: { fontSize: 11, lineHeight: 16, fontWeight: '700' },
   statusDetail: { fontSize: 10, lineHeight: 14 },
+  soundShortcut: { minHeight: 30, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingRight: 8 },
+  soundShortcutText: { maxWidth: 210, fontSize: 10, lineHeight: 15, fontWeight: '700' },
   switchBusy: { width: 48, height: 44 },
   addButton: { minHeight: 44, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 13, overflow: 'hidden' },
   addButtonText: { fontSize: 14, fontWeight: '700' },
@@ -495,6 +627,17 @@ const styles = StyleSheet.create({
   modalClose: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   modalDivider: { height: StyleSheet.hairlineWidth },
   modalActions: { gap: 8 },
+  modalSoundAction: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 13, borderWidth: 1, borderRadius: 13 },
+  modalSoundActionText: { flex: 1, fontSize: 12, lineHeight: 17, fontWeight: '600' },
+  modalToneList: { gap: 7 },
+  toneOption: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 5, borderWidth: 1, borderRadius: 12 },
+  toneChoice: { flex: 1, minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  toneCopy: { flex: 1, gap: 2 },
+  toneTitle: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  toneDetail: { fontSize: 10, lineHeight: 14 },
+  previewButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
+  toneNote: { fontSize: 10, lineHeight: 15 },
+  toneProblem: { fontSize: 11, lineHeight: 16 },
   modalPrimary: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 14, borderRadius: 14 },
   modalPrimaryText: { flex: 1, fontSize: 14, fontWeight: '700' },
   modalDestructive: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, borderWidth: 1, borderRadius: 14 },

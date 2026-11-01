@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
 import { ActivityIndicator, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import * as Location from 'expo-location';
 import { Divider, PrimaryButton, Screen, ScreenTitle, Subtle } from '../../components/ui';
 import { createDestinationAlarm, DEFAULT_DESTINATION_RADIUS_M, disarmDestinationAlarm } from '../../domain/destination-alarm';
+import { ALARM_TONES, getAlarmTone, type AlarmToneId } from '../../domain/alarm-tones';
+import { ALARM_TONE_PREVIEWS } from '../../data/alarm-tone-previews';
 import type { DestinationKind, DestinationSource, SavedDestination } from '../../domain/models';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
@@ -81,6 +84,9 @@ function DestinationForm({
 }) {
   const colors = useNavoColors();
   const app = useAppState();
+  const existingAlarm = destinationId
+    ? app.destinationAlarms.find((alarm) => alarm.destinationId === destinationId)
+    : undefined;
   const [step, setStep] = useState<PickerStep>(initialDestination ? 'review' : 'choose');
   const [kind, setKind] = useState<DestinationKind>(initialDestination?.kind ?? initialKind);
   const [railLineId, setRailLineId] = useState(app.firstRun.preferences.preferredRailLineId);
@@ -98,8 +104,10 @@ function DestinationForm({
   const [source, setSource] = useState<DestinationSource | null>(initialDestination?.source ?? null);
   const [providerPlaceId, setProviderPlaceId] = useState(initialDestination?.providerPlaceId);
   const [radiusM, setRadiusM] = useState(initialDestination
-    ? app.destinationAlarms.find((alarm) => alarm.destinationId === initialDestination.id)?.radiusM ?? DEFAULT_DESTINATION_RADIUS_M
+    ? existingAlarm?.radiusM ?? DEFAULT_DESTINATION_RADIUS_M
     : DEFAULT_DESTINATION_RADIUS_M);
+  const [ringtoneId, setRingtoneId] = useState<AlarmToneId>(getAlarmTone(existingAlarm?.ringtoneId).id);
+  const [previewingToneId, setPreviewingToneId] = useState<AlarmToneId | null>(null);
   const [query, setQuery] = useState(initialDestination?.name ?? '');
   const [shouldSearch, setShouldSearch] = useState(false);
   const [suggestions, setSuggestions] = useState<TomTomPlaceSuggestion[]>([]);
@@ -109,6 +117,8 @@ function DestinationForm({
   const [searchProblem, setSearchProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveProblem, setSaveProblem] = useState<string | null>(null);
+  const audioPlayer = useAudioPlayer(null);
+  const audioStatus = useAudioPlayerStatus(audioPlayer);
   const searchSessionId = useRef(createPlacesSearchSessionId());
   const screenScrollRef = useRef<ScrollViewInstance>(null);
   const searchController = useRef<AbortController | null>(null);
@@ -135,7 +145,18 @@ function DestinationForm({
     setSaveProblem(null);
     setSearchProblem(null);
     setSuggestions([]);
-  }, []));
+  }, [
+    setCoordinate,
+    setName,
+    setPointConfirmed,
+    setProviderPlaceId,
+    setSaveProblem,
+    setSearchProblem,
+    setSource,
+    setStep,
+    setSubtitle,
+    setSuggestions,
+  ]));
 
   useEffect(() => {
     const value = query.trim();
@@ -200,10 +221,29 @@ function DestinationForm({
     };
   }, [kind, step]);
 
-  const existingAlarm = destinationId
-    ? app.destinationAlarms.find((alarm) => alarm.destinationId === destinationId)
-    : undefined;
   const editWillDisarm = Boolean(existingAlarm?.enabled);
+
+  const previewTone = (toneId: AlarmToneId) => {
+    const previewAsset = ALARM_TONE_PREVIEWS[toneId];
+    if (!previewAsset) return;
+    if (previewingToneId === toneId && audioStatus.playing) {
+      audioPlayer.pause();
+      setPreviewingToneId(null);
+      return;
+    }
+    setPreviewingToneId(toneId);
+    audioPlayer.replace(previewAsset);
+    audioPlayer.play();
+  };
+
+  const chooseTone = (toneId: AlarmToneId) => {
+    if (previewingToneId) {
+      audioPlayer.pause();
+      setPreviewingToneId(null);
+    }
+    setRingtoneId(toneId);
+    setSaveProblem(null);
+  };
 
   const handleSuggestion = async (suggestion: TomTomPlaceSuggestion) => {
     if (busyRef.current) return;
@@ -315,7 +355,11 @@ function DestinationForm({
   };
 
   const saveDestination = async () => {
-    if (!coordinate || !pointConfirmed || busyRef.current) return;
+    if (busyRef.current) return;
+    if (!coordinate || !pointConfirmed) {
+      setSaveProblem('Choose and confirm a destination before saving.');
+      return;
+    }
     const label = name.trim();
     if (!label) {
       setSaveProblem('Add a name for this stop before saving it.');
@@ -346,10 +390,11 @@ function DestinationForm({
           destinationAlarms[alarmIndex] = {
             ...disarmDestinationAlarm(existing),
             radiusM,
+            ringtoneId,
             watchState: 'off',
           };
         } else {
-          destinationAlarms.push(createDestinationAlarm(newId('alarm'), saved.id, radiusM));
+          destinationAlarms.push({ ...createDestinationAlarm(newId('alarm'), saved.id, radiusM), ringtoneId });
         }
         return {
           ...current,
@@ -359,9 +404,12 @@ function DestinationForm({
           destinationAlarms,
         };
       });
-      void router.replace('/(tabs)');
+      audioPlayer.pause();
+      setPreviewingToneId(null);
+      router.replace('/(tabs)');
     } catch {
       setSaveProblem('Navo could not save this alarm on your device. Check storage and try again.');
+    } finally {
       busyRef.current = false;
       setSaving(false);
     }
@@ -388,24 +436,26 @@ function DestinationForm({
     <>
       {editWillDisarm ? <Text style={[styles.warningText, { color: colors.warning }]}>Saving changes turns this alarm off.</Text> : null}
       {saveProblem ? <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{saveProblem}</Text> : null}
-      <PrimaryButton title={saving ? 'Saving…' : 'Save alarm'} onPress={() => void saveDestination()} disabled={!coordinate || !pointConfirmed || !name.trim() || saving} />
+      <PrimaryButton title={saving ? 'Saving…' : 'Save alarm'} onPress={() => void saveDestination()} disabled={saving} />
       <Text style={[styles.footnote, { color: colors.muted }]}>Alarm stays off until you switch it on.</Text>
-      <Pressable accessibilityRole="button" disabled={saving} onPress={() => router.back()} style={styles.cancelButton}>
-        <Text style={[styles.cancelText, { color: colors.muted }]}>Cancel</Text>
-      </Pressable>
     </>
   ) : undefined;
 
   return (
     <Screen scrollRef={screenScrollRef} footer={footer}>
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel={step === 'review' && !destinationId ? 'Back to stop search' : 'Go back'} onPress={back} style={styles.backButton}>
-          <Feather name="arrow-left" size={20} color={colors.ink} />
-        </Pressable>
+        {step === 'review' && !destinationId ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to destination search" onPress={back} style={styles.backButton}>
+            <Feather name="arrow-left" size={20} color={colors.ink} />
+          </Pressable>
+        ) : null}
         <View style={styles.headingCopy}>
           <Text accessibilityRole="header" style={[styles.headerTitle, { color: colors.ink }]}>{destinationId ? 'Edit alarm' : 'Add alarm'}</Text>
-          <Text style={[styles.headerSubtitle, { color: colors.muted }]}>{step === 'choose' ? 'Choose your destination.' : 'Review your stop.'}</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.muted }]}>{step === 'choose' ? 'Choose your destination.' : 'Review your stop and alarm sound.'}</Text>
         </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close alarm editor" disabled={saving} onPress={() => router.back()} style={styles.closeButton}>
+          <Feather name="x" size={20} color={colors.ink} />
+        </Pressable>
       </View>
 
       {step === 'choose' ? (
@@ -710,6 +760,53 @@ function DestinationForm({
             </View>
           </View>
 
+          <View style={styles.soundSection}>
+            <View style={styles.soundHeading}>
+              <View style={styles.radiusCopy}>
+                <Text style={[styles.radiusTitle, { color: colors.ink }]}>Alarm sound</Text>
+                <Text style={[styles.actionDetail, { color: colors.muted }]}>Choose and preview the tone for this stop.</Text>
+              </View>
+              <Text numberOfLines={1} style={[styles.selectedToneLabel, { color: colors.accent }]}>{getAlarmTone(ringtoneId).label}</Text>
+            </View>
+            <View style={styles.toneList}>
+              {ALARM_TONES.map((tone) => {
+                const selected = ringtoneId === tone.id;
+                const previewAsset = ALARM_TONE_PREVIEWS[tone.id];
+                const isPreviewing = previewingToneId === tone.id && audioStatus.playing;
+                return (
+                  <View key={tone.id} style={[styles.toneOption, { borderColor: selected ? colors.accent : colors.line, backgroundColor: selected ? colors.accentSoft : colors.surface }]}>
+                    <Pressable
+                      accessibilityRole="radio"
+                      accessibilityLabel={tone.label}
+                      accessibilityHint="Select this alarm sound."
+                      accessibilityState={{ checked: selected }}
+                      onPress={() => chooseTone(tone.id)}
+                      style={styles.toneChoice}
+                    >
+                      <Feather name={selected ? 'check-circle' : 'circle'} size={19} color={selected ? colors.accent : colors.muted} />
+                      <View style={styles.toneCopy}>
+                        <Text style={[styles.toneTitle, { color: colors.ink }]}>{tone.label}</Text>
+                        <Text numberOfLines={1} style={[styles.toneDetail, { color: colors.muted }]}>{tone.detail}</Text>
+                      </View>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={previewAsset ? (isPreviewing ? 'Pause ' : 'Preview ') + tone.label : 'System default preview unavailable'}
+                      accessibilityHint={previewAsset ? 'Play a short sound sample.' : 'The phone notification sound is controlled by system settings.'}
+                      accessibilityState={{ disabled: !previewAsset }}
+                      disabled={!previewAsset}
+                      onPress={() => previewTone(tone.id)}
+                      style={[styles.previewButton, { backgroundColor: colors.raised, opacity: previewAsset ? 1 : 0.45 }]}
+                    >
+                      <Feather name={previewAsset ? isPreviewing ? 'pause' : 'play' : 'volume-1'} size={16} color={colors.accent} />
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+            <Text style={[styles.toneNote, { color: colors.muted }]}>Phone notification and Focus settings can still mute an alarm.</Text>
+          </View>
+
         </>
       )}
     </Screen>
@@ -717,8 +814,9 @@ function DestinationForm({
 }
 
 const styles = StyleSheet.create({
-  header: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10 },
   backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  closeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   headingCopy: { flex: 1, gap: 1 },
   headerTitle: { fontSize: 20, lineHeight: 25, fontWeight: '700', letterSpacing: -0.3 },
   headerSubtitle: { fontSize: 11, lineHeight: 15 },
@@ -794,8 +892,17 @@ const styles = StyleSheet.create({
   radiusOptions: { flexDirection: 'row', gap: 7 },
   radiusChip: { flex: 1, minWidth: 54, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1, borderRadius: 11 },
   radiusText: { fontSize: 12, fontWeight: '700' },
+  soundSection: { gap: 10, paddingTop: 2 },
+  soundHeading: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  selectedToneLabel: { maxWidth: 120, fontSize: 12, fontWeight: '700' },
+  toneList: { gap: 7 },
+  toneOption: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 5, borderWidth: 1, borderRadius: 12 },
+  toneChoice: { flex: 1, minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  toneCopy: { flex: 1, gap: 2 },
+  toneTitle: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  toneDetail: { fontSize: 10, lineHeight: 14 },
+  previewButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
+  toneNote: { fontSize: 11, lineHeight: 16 },
   warningText: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   footnote: { textAlign: 'center', fontSize: 12 },
-  cancelButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  cancelText: { fontSize: 12, fontWeight: '600' },
 });

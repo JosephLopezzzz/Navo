@@ -5,8 +5,9 @@ import * as TaskManager from 'expo-task-manager';
 import { evaluateLocationFix } from '../domain/trip-engine';
 import { evaluateDestinationAlarmFix } from '../domain/destination-alarm';
 import type { DestinationAlarmEvent, LocationFix, TripEvent } from '../domain/models';
+import { getAlarmTone } from '../domain/alarm-tones';
 import { readAppState, updateAppState } from './storage';
-import { requestAlarmPermissions } from './alarm-permissions';
+import { ensureAlarmNotificationChannels, requestAlarmPermissions } from './alarm-permissions';
 
 export const LOCATION_TASK_NAME = 'navo-trip-location-v1';
 
@@ -38,6 +39,8 @@ async function deliverDestinationAlarmEvent(event: DestinationAlarmEvent): Promi
   const alarm = state.destinationAlarms.find((item) => item.id === event.alarmId);
   const destination = state.destinations.find((item) => item.id === event.destinationId);
   if (!alarm || !destination || alarm.sessionId !== event.sessionId || alarm.pendingEvent?.id !== event.id) return;
+  const tone = getAlarmTone(alarm.ringtoneId);
+  if (Platform.OS === 'android') await ensureAlarmNotificationChannels();
 
   const presented = await Notifications.getPresentedNotificationsAsync();
   const existing = presented.find((item) => item.request.content.data?.eventId === event.id);
@@ -45,9 +48,9 @@ async function deliverDestinationAlarmEvent(event: DestinationAlarmEvent): Promi
     content: {
       title: 'Your stop is near',
       body: event.message,
-      sound: true,
+      sound: tone.soundFileName ?? 'default',
       data: { eventId: event.id, destinationId: event.destinationId, destinationAlarmId: event.alarmId },
-      ...(Platform.OS === 'android' ? { channelId: 'navo-trip' } : {}),
+      ...(Platform.OS === 'android' ? { channelId: tone.androidChannelId } : {}),
     },
     trigger: null,
   });

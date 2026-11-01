@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { AndroidImportance } from 'expo-notifications';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
+import { ALARM_TONES } from '../domain/alarm-tones';
 
 export interface AlarmPermissionSummary {
   notifications: boolean;
@@ -24,15 +25,28 @@ export async function readAlarmPermissions(): Promise<AlarmPermissionSummary> {
   };
 }
 
-export async function requestAlarmPermissions(): Promise<AlarmPermissionSummary> {
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('navo-trip', {
+export async function ensureAlarmNotificationChannels(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  await Promise.all([
+    Notifications.setNotificationChannelAsync('navo-trip', {
       name: 'Navo trip alerts',
       importance: AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 120, 250],
       lightColor: '#0869A8',
-    });
-  }
+    }),
+    ...ALARM_TONES.map((tone) => Notifications.setNotificationChannelAsync(tone.androidChannelId, {
+      name: 'Destination alarm: ' + tone.label,
+      description: 'Arrival alerts for alarms using the ' + tone.label + ' sound.',
+      importance: AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 120, 250],
+      lightColor: '#0869A8',
+      ...(tone.soundFileName ? { sound: tone.soundFileName } : {}),
+    })),
+  ]);
+}
+
+export async function requestAlarmPermissions(): Promise<AlarmPermissionSummary> {
+  await ensureAlarmNotificationChannels();
 
   let state = await readAlarmPermissions();
   if (!state.notifications) {

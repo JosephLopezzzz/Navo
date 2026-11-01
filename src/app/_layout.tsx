@@ -94,7 +94,7 @@ function RootNavigator() {
           </Stack.Protected>
           <Stack.Protected guard={showApp} redirectTo={appRedirectTo}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="destination/pick" options={{ title: 'Choose a destination', headerShown: false }} />
+            <Stack.Screen name="destination/pick" options={{ title: 'Choose a destination', headerShown: false, presentation: 'modal' }} />
             <Stack.Screen name="destination/map" options={{ title: 'Pick on map', headerShown: false }} />
             <Stack.Screen name="alarm/enable" options={{ title: 'Enable alarm', headerShown: false }} />
             <Stack.Screen name="permissions" options={{ title: 'Alarm permissions', headerShown: false }} />

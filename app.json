@@ -54,7 +54,12 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#0869A8",
-          "defaultChannel": "navo-trip"
+          "defaultChannel": "navo-trip",
+          "sounds": [
+            "./assets/sounds/navo_soft_bell.wav",
+            "./assets/sounds/navo_rising_chime.wav",
+            "./assets/sounds/navo_double_pulse.wav"
+          ]
         }
       ],
       "expo-font",
@@ -68,7 +73,17 @@
         }
       ],
       "@maplibre/maplibre-react-native",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      "expo-asset"
     ],
     "extra": {
       "eas": {

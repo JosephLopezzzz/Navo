@@ -1,4 +1,5 @@
 import type { DestinationAlarm, DestinationAlarmEvent, LocationFix, SavedDestination } from './models';
+import { DEFAULT_ALARM_TONE_ID } from './alarm-tones';
 
 export const DEFAULT_DESTINATION_RADIUS_M = 500;
 export const MAX_ALARM_FIX_ACCURACY_M = 80;
@@ -10,6 +11,7 @@ export function createDestinationAlarm(id: string, destinationId: string, radius
   return {
     id,
     destinationId,
+    ringtoneId: DEFAULT_ALARM_TONE_ID,
     enabled: false,
     radiusM,
     watchState: 'off',

@@ -101,7 +101,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
   }, [hasActiveLocationWork, refreshState]);
 
   const value = useMemo<AppStateContextValue>(() => ({
-    schemaVersion: 3,
+    schemaVersion: 4,
     activeTrip: state?.activeTrip ?? null,
     activeRoute: state?.activeRoute ?? null,
     customBusRoutes: state?.customBusRoutes ?? [],

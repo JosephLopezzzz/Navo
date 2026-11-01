@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SQLite from 'expo-sqlite';
 import type { DestinationAlarm, DestinationKind, SavedDestination, TransitRoute, Trip } from '../domain/models';
+import { DEFAULT_ALARM_TONE_ID, isAlarmToneId } from '../domain/alarm-tones';
 
 const STORAGE_KEY = 'navo:state:v1';
 const DATABASE_NAME = 'navo-state.db';
@@ -27,7 +28,7 @@ export interface FirstRunState {
   permissionNoticeAlarmId: string | null;
 }
 export interface StoredAppState {
-  schemaVersion: 3;
+  schemaVersion: 4;
   activeTrip: Trip | null;
   activeRoute: TransitRoute | null;
   customBusRoutes: TransitRoute[];
@@ -63,7 +64,7 @@ export const defaultFirstRunState: FirstRunState = {
   permissionNoticeAlarmId: null,
 };
 export const defaultAppState: StoredAppState = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   activeTrip: null,
   activeRoute: null,
   customBusRoutes: [],
@@ -80,12 +81,17 @@ export function normalizeAppState(value: unknown): StoredAppState {
   return {
     ...defaultAppState,
     ...parsed,
-    schemaVersion: 3,
+    schemaVersion: 4,
     activeTrip: parsed.activeTrip ?? null,
     activeRoute: parsed.activeRoute ?? null,
     customBusRoutes: Array.isArray(parsed.customBusRoutes) ? parsed.customBusRoutes : [],
     destinations: Array.isArray(parsed.destinations) ? parsed.destinations : [],
-    destinationAlarms: Array.isArray(parsed.destinationAlarms) ? parsed.destinationAlarms : [],
+    destinationAlarms: Array.isArray(parsed.destinationAlarms)
+      ? parsed.destinationAlarms.map((alarm) => ({
+        ...alarm,
+        ringtoneId: isAlarmToneId(alarm?.ringtoneId) ? alarm.ringtoneId : DEFAULT_ALARM_TONE_ID,
+      }))
+      : [],
     settings: {
       ...defaultSettings,
       ...parsed.settings,

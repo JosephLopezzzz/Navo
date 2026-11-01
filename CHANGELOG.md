@@ -5,6 +5,7 @@
 ### Added
 
 - TomTom place search, map-pin destination selection, and saved destination alarms with adjustable radii.
+- Per-destination alarm sounds with bundled tone previews and the phone's default notification sound.
 - SQLite-backed local state seeded from the previous AsyncStorage key when present.
 
 ### Changed
