@@ -73,9 +73,9 @@ export default function BusRouteScreen() {
           <View style={styles.stopNameRow}>
             <Text style={[styles.order, { color: colors.accent }]}>{String(index + 1).padStart(2, '0')}</Text>
             <TextInput accessibilityLabel={`Stop ${index + 1} name`} value={stop.name} onChangeText={(name) => updateStop(stop.id, { name })} placeholder={index === 0 ? 'Boarding stop' : index === stops.length - 1 ? 'Destination' : 'Next stop'} placeholderTextColor={colors.quiet} style={[styles.input, styles.stopInput, { borderBottomColor: colors.line, color: colors.ink }]} returnKeyType="next" />
-            {stops.length > 2 && <Pressable accessibilityRole="button" accessibilityLabel={`Remove stop ${stop.name || index + 1}`} onPress={() => setStops((current) => current.filter((item) => item.id !== stop.id))} hitSlop={8} style={styles.removeButton}><Feather name="x" size={17} color={colors.muted} /></Pressable>}
+            {stops.length > 2 && <Pressable motion="compact" accessibilityRole="button" accessibilityLabel={`Remove stop ${stop.name || index + 1}`} onPress={() => setStops((current) => current.filter((item) => item.id !== stop.id))} hitSlop={8} style={styles.removeButton}><Feather name="x" size={17} color={colors.muted} /></Pressable>}
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Save current location for ${stop.name || `stop ${index + 1}`}`} onPress={() => void recordLocation(stop)} disabled={busyStop !== null} style={styles.locationRow}>
+          <Pressable motion="card" accessibilityRole="button" accessibilityLabel={`Save current location for ${stop.name || `stop ${index + 1}`}`} onPress={() => void recordLocation(stop)} disabled={busyStop !== null} style={styles.locationRow}>
             <Feather name={stop.latitude === undefined ? 'map-pin' : 'check-circle'} size={15} color={stop.latitude === undefined ? colors.accent : colors.teal} />
             <Text style={[styles.locationText, { color: stop.latitude === undefined ? colors.accent : colors.teal }]}>{busyStop === stop.id ? 'Getting current location…' : stop.latitude === undefined ? 'Save current location' : `Location saved · ${stop.latitude.toFixed(4)}, ${stop.longitude?.toFixed(4)}`}</Text>
           </Pressable>

@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SQLite from 'expo-sqlite';
 import type { DestinationAlarm, DestinationKind, SavedDestination, TransitRoute, Trip } from '../domain/models';
 import { DEFAULT_ALARM_TONE_ID, isAlarmToneId } from '../domain/alarm-tones';
+import { normalizeImportedSounds, type ImportedAlarmSound } from '../domain/imported-alarm-sounds';
 
 const STORAGE_KEY = 'navo:state:v1';
 const DATABASE_NAME = 'navo-state.db';
@@ -28,12 +29,13 @@ export interface FirstRunState {
   permissionNoticeAlarmId: string | null;
 }
 export interface StoredAppState {
-  schemaVersion: 4;
+  schemaVersion: 5;
   activeTrip: Trip | null;
   activeRoute: TransitRoute | null;
   customBusRoutes: TransitRoute[];
   destinations: SavedDestination[];
   destinationAlarms: DestinationAlarm[];
+  importedAlarmSounds: ImportedAlarmSound[];
   settings: AppSettings;
   firstRun: FirstRunState;
   lastLocationAt: number | null;
@@ -64,12 +66,13 @@ export const defaultFirstRunState: FirstRunState = {
   permissionNoticeAlarmId: null,
 };
 export const defaultAppState: StoredAppState = {
-  schemaVersion: 4,
+  schemaVersion: 5,
   activeTrip: null,
   activeRoute: null,
   customBusRoutes: [],
   destinations: [],
   destinationAlarms: [],
+  importedAlarmSounds: [],
   settings: defaultSettings,
   firstRun: defaultFirstRunState,
   lastLocationAt: null, lastLocation: null, lastLocationAccuracyM: null, locationProblem: null, lastTripNotice: null,
@@ -78,10 +81,12 @@ export const defaultAppState: StoredAppState = {
 export function normalizeAppState(value: unknown): StoredAppState {
   if (!value || typeof value !== 'object') return defaultAppState;
   const parsed = value as Partial<StoredAppState>;
+  const importedAlarmSounds = normalizeImportedSounds(parsed.importedAlarmSounds);
   return {
     ...defaultAppState,
     ...parsed,
-    schemaVersion: 4,
+    schemaVersion: 5,
+    importedAlarmSounds,
     activeTrip: parsed.activeTrip ?? null,
     activeRoute: parsed.activeRoute ?? null,
     customBusRoutes: Array.isArray(parsed.customBusRoutes) ? parsed.customBusRoutes : [],
@@ -89,7 +94,7 @@ export function normalizeAppState(value: unknown): StoredAppState {
     destinationAlarms: Array.isArray(parsed.destinationAlarms)
       ? parsed.destinationAlarms.map((alarm) => ({
         ...alarm,
-        ringtoneId: isAlarmToneId(alarm?.ringtoneId) ? alarm.ringtoneId : DEFAULT_ALARM_TONE_ID,
+        ringtoneId: isAlarmToneId(alarm?.ringtoneId, importedAlarmSounds) ? alarm.ringtoneId : DEFAULT_ALARM_TONE_ID,
       }))
       : [],
     settings: {

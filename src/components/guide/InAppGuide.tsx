@@ -106,7 +106,7 @@ export function InAppGuide() {
             <Text style={[styles.progress, { color: colors.accent }]}>{index + 1} OF {steps.length}</Text>
             <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>{step.title}</Text>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Skip guide" onPress={finishGuide} hitSlop={8} style={styles.skipTop}>
+          <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Skip guide" onPress={finishGuide} hitSlop={8} style={styles.skipTop}>
             <Text style={[styles.skipText, { color: colors.muted }]}>Skip</Text>
           </Pressable>
         </View>
@@ -114,7 +114,7 @@ export function InAppGuide() {
         {!cutout ? <Text style={[styles.hint, { color: colors.quiet }]}>The highlighted control is on the current screen.</Text> : null}
         <View style={styles.footer}>
           {index > 0 ? (
-              <Pressable accessibilityRole="button" onPress={() => setStep(Math.max(0, index - 1))} style={styles.backButton}>
+              <Pressable motion="compact" accessibilityRole="button" onPress={() => setStep(Math.max(0, index - 1))} style={styles.backButton}>
               <Text style={[styles.skipText, { color: colors.muted }]}>Back</Text>
             </Pressable>
           ) : <View style={styles.backButton} />}

@@ -66,7 +66,7 @@ export default function FirstRunLegalScreen() {
       </ScrollView>
       <View style={[styles.footer, { backgroundColor: colors.background, borderTopColor: colors.line }]}>
         {!reachedEnd ? <Text style={[styles.hint, { color: colors.muted }]}>Scroll to the end to enable the acknowledgment.</Text> : null}
-        <Pressable
+        <Pressable motion="card"
           accessibilityRole="checkbox"
           accessibilityState={{ checked, disabled: !reachedEnd }}
           disabled={!reachedEnd}

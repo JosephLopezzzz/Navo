@@ -19,7 +19,7 @@ export function LegalSections({ sections, onLinkProblem }: { sections: LegalSect
           <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.ink }]}>{section.title}</Text>
           {section.body ? <Text style={[styles.body, { color: colors.muted }]}>{section.body}</Text> : null}
           {section.links?.map((link) => (
-            <Pressable key={link.url} accessibilityRole="link" onPress={() => openLink(link.url)} style={styles.linkRow}>
+            <Pressable motion="card" key={link.url} accessibilityRole="link" onPress={() => openLink(link.url)} style={styles.linkRow}>
               <Text style={[styles.linkText, { color: colors.accent }]}>{link.label}</Text>
               <Feather name="external-link" size={15} color={colors.accent} />
             </Pressable>

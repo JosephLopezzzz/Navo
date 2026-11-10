@@ -407,7 +407,7 @@ export default function DestinationMapScreen() {
       <SafeAreaView pointerEvents="box-none" style={styles.overlay} edges={['top', 'bottom']}>
         <View style={styles.topArea}>
           <View style={styles.searchRow}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Back to destination" onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.surface }]}>
+            <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Back to destination" onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.surface }]}>
               <Feather name="arrow-left" size={20} color={colors.ink} />
             </Pressable>
             <View style={[styles.searchField, { backgroundColor: colors.surface, borderColor: colors.line }]}>
@@ -425,7 +425,7 @@ export default function DestinationMapScreen() {
               />
               {searchLoading || resolvingId ? <ActivityIndicator color={colors.accent} /> : null}
               {query.length > 0 && !searchLoading && !resolvingId && (
-                <Pressable accessibilityRole="button" accessibilityLabel="Clear place search" onPress={() => updateQuery('')} style={styles.clearButton}>
+                <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Clear place search" onPress={() => updateQuery('')} style={styles.clearButton}>
                   <Feather name="x-circle" size={17} color={colors.quiet} />
                 </Pressable>
               )}
@@ -435,7 +435,7 @@ export default function DestinationMapScreen() {
             <View style={[styles.suggestionList, { backgroundColor: colors.surface, borderColor: colors.line }]}>
               <ScrollView keyboardShouldPersistTaps="handled" style={styles.suggestionScroll}>
                 {suggestions.map((suggestion) => (
-                  <Pressable key={suggestion.id} accessibilityRole="button" onPress={() => void handleSuggestion(suggestion)} style={[styles.suggestionRow, { borderBottomColor: colors.line }]}>
+                  <Pressable motion="card" key={suggestion.id} accessibilityRole="button" onPress={() => void handleSuggestion(suggestion)} style={[styles.suggestionRow, { borderBottomColor: colors.line }]}>
                     <Feather name={suggestion.type === 'poi' ? 'map-pin' : 'map'} size={17} color={colors.accent} />
                     <View style={styles.suggestionCopy}>
                       <Text numberOfLines={1} style={[styles.suggestionTitle, { color: colors.ink }]}>{suggestion.title}</Text>
@@ -457,15 +457,15 @@ export default function DestinationMapScreen() {
           )}
           {mapStyle && (
             <View style={styles.mapControls}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Recenter on my location" onPress={() => void recenter()} disabled={recentering} style={[styles.mapControlButton, { backgroundColor: colors.surface }]}>
+              <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Recenter on my location" onPress={() => void recenter()} disabled={recentering} style={[styles.mapControlButton, { backgroundColor: colors.surface }]}>
                 {recentering ? <ActivityIndicator color={colors.accent} /> : <Feather name="crosshair" size={18} color={colors.accent} />}
               </Pressable>
               <View style={[styles.zoomControls, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-                <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" accessibilityState={{ disabled: zoom >= MAX_MAP_ZOOM }} disabled={zoom >= MAX_MAP_ZOOM} onPress={() => void zoomBy(1)} style={styles.mapControlButton}>
+                <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Zoom in" accessibilityState={{ disabled: zoom >= MAX_MAP_ZOOM }} disabled={zoom >= MAX_MAP_ZOOM} onPress={() => void zoomBy(1)} style={styles.mapControlButton}>
                   <Feather name="plus" size={20} color={zoom >= MAX_MAP_ZOOM ? colors.quiet : colors.ink} />
                 </Pressable>
                 <View style={[styles.zoomDivider, { backgroundColor: colors.line }]} />
-                <Pressable accessibilityRole="button" accessibilityLabel="Zoom out" accessibilityState={{ disabled: zoom <= MIN_MAP_ZOOM }} disabled={zoom <= MIN_MAP_ZOOM} onPress={() => void zoomBy(-1)} style={styles.mapControlButton}>
+                <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Zoom out" accessibilityState={{ disabled: zoom <= MIN_MAP_ZOOM }} disabled={zoom <= MIN_MAP_ZOOM} onPress={() => void zoomBy(-1)} style={styles.mapControlButton}>
                   <Feather name="minus" size={20} color={zoom <= MIN_MAP_ZOOM ? colors.quiet : colors.ink} />
                 </Pressable>
               </View>

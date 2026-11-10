@@ -2,13 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
 import { ActivityIndicator, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import * as Location from 'expo-location';
 import { Divider, PrimaryButton, Screen, ScreenTitle, Subtle } from '../../components/ui';
 import { createDestinationAlarm, DEFAULT_DESTINATION_RADIUS_M, disarmDestinationAlarm } from '../../domain/destination-alarm';
-import { ALARM_TONES, getAlarmTone, type AlarmToneId } from '../../domain/alarm-tones';
-import { ALARM_TONE_PREVIEWS } from '../../data/alarm-tone-previews';
+import { getAlarmTone, type AlarmToneId } from '../../domain/alarm-tones';
+import { AlarmSoundPicker } from '../../components/AlarmSoundPicker';
 import type { DestinationKind, DestinationSource, SavedDestination } from '../../domain/models';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
@@ -106,8 +105,8 @@ function DestinationForm({
   const [radiusM, setRadiusM] = useState(initialDestination
     ? existingAlarm?.radiusM ?? DEFAULT_DESTINATION_RADIUS_M
     : DEFAULT_DESTINATION_RADIUS_M);
-  const [ringtoneId, setRingtoneId] = useState<AlarmToneId>(getAlarmTone(existingAlarm?.ringtoneId).id);
-  const [previewingToneId, setPreviewingToneId] = useState<AlarmToneId | null>(null);
+  const [ringtoneId, setRingtoneId] = useState<AlarmToneId>(getAlarmTone(existingAlarm?.ringtoneId, app.importedAlarmSounds).id);
+  const [soundBusy, setSoundBusy] = useState(false);
   const [query, setQuery] = useState(initialDestination?.name ?? '');
   const [shouldSearch, setShouldSearch] = useState(false);
   const [suggestions, setSuggestions] = useState<TomTomPlaceSuggestion[]>([]);
@@ -117,8 +116,6 @@ function DestinationForm({
   const [searchProblem, setSearchProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveProblem, setSaveProblem] = useState<string | null>(null);
-  const audioPlayer = useAudioPlayer(null);
-  const audioStatus = useAudioPlayerStatus(audioPlayer);
   const searchSessionId = useRef(createPlacesSearchSessionId());
   const screenScrollRef = useRef<ScrollViewInstance>(null);
   const searchController = useRef<AbortController | null>(null);
@@ -223,24 +220,7 @@ function DestinationForm({
 
   const editWillDisarm = Boolean(existingAlarm?.enabled);
 
-  const previewTone = (toneId: AlarmToneId) => {
-    const previewAsset = ALARM_TONE_PREVIEWS[toneId];
-    if (!previewAsset) return;
-    if (previewingToneId === toneId && audioStatus.playing) {
-      audioPlayer.pause();
-      setPreviewingToneId(null);
-      return;
-    }
-    setPreviewingToneId(toneId);
-    audioPlayer.replace(previewAsset);
-    audioPlayer.play();
-  };
-
   const chooseTone = (toneId: AlarmToneId) => {
-    if (previewingToneId) {
-      audioPlayer.pause();
-      setPreviewingToneId(null);
-    }
     setRingtoneId(toneId);
     setSaveProblem(null);
   };
@@ -355,7 +335,7 @@ function DestinationForm({
   };
 
   const saveDestination = async () => {
-    if (busyRef.current) return;
+    if (busyRef.current || soundBusy) return;
     if (!coordinate || !pointConfirmed) {
       setSaveProblem('Choose and confirm a destination before saving.');
       return;
@@ -404,8 +384,6 @@ function DestinationForm({
           destinationAlarms,
         };
       });
-      audioPlayer.pause();
-      setPreviewingToneId(null);
       router.replace('/(tabs)');
     } catch {
       setSaveProblem('Navo could not save this alarm on your device. Check storage and try again.');
@@ -436,7 +414,7 @@ function DestinationForm({
     <>
       {editWillDisarm ? <Text style={[styles.warningText, { color: colors.warning }]}>Saving changes turns this alarm off.</Text> : null}
       {saveProblem ? <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{saveProblem}</Text> : null}
-      <PrimaryButton title={saving ? 'Saving…' : 'Save alarm'} onPress={() => void saveDestination()} disabled={saving} />
+      <PrimaryButton title={saving ? 'Saving…' : 'Save alarm'} onPress={() => void saveDestination()} disabled={saving || soundBusy} />
       <Text style={[styles.footnote, { color: colors.muted }]}>Alarm stays off until you switch it on.</Text>
     </>
   ) : undefined;
@@ -445,7 +423,7 @@ function DestinationForm({
     <Screen scrollRef={screenScrollRef} footer={footer}>
       <View style={styles.header}>
         {step === 'review' && !destinationId ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Back to destination search" onPress={back} style={styles.backButton}>
+          <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Back to destination search" onPress={back} style={styles.backButton}>
             <Feather name="arrow-left" size={20} color={colors.ink} />
           </Pressable>
         ) : null}
@@ -453,7 +431,7 @@ function DestinationForm({
           <Text accessibilityRole="header" style={[styles.headerTitle, { color: colors.ink }]}>{destinationId ? 'Edit alarm' : 'Add alarm'}</Text>
           <Text style={[styles.headerSubtitle, { color: colors.muted }]}>{step === 'choose' ? 'Choose your destination.' : 'Review your stop and alarm sound.'}</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close alarm editor" disabled={saving} onPress={() => router.back()} style={styles.closeButton}>
+        <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Close alarm editor" disabled={saving || soundBusy} onPress={() => router.back()} style={styles.closeButton}>
           <Feather name="x" size={20} color={colors.ink} />
         </Pressable>
       </View>
@@ -470,7 +448,7 @@ function DestinationForm({
               {destinationKinds.map((item) => {
                 const selected = item.id === kind;
                 return (
-                  <Pressable
+                  <Pressable motion="compact"
                     key={item.id}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: selected }}
@@ -505,7 +483,7 @@ function DestinationForm({
                 {railLines.map((line) => {
                   const selected = line.id === selectedRailLine.id;
                   return (
-                    <Pressable
+                    <Pressable motion="compact"
                       key={line.id}
                       accessibilityRole="radio"
                       accessibilityState={{ checked: selected }}
@@ -548,7 +526,7 @@ function DestinationForm({
             />
             {searchLoading || resolvingId ? <ActivityIndicator color={colors.accent} /> : null}
             {query.length > 0 && !searchLoading && !resolvingId && (
-              <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => { nearbyController.current?.abort(); setNearbyLoading(false); setSearchLoading(false); setSelectedNearbyCategory(null); setQuery(''); setSuggestions([]); setNearbySuggestions([]); setShouldSearch(false); }} style={styles.clearButton}>
+              <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => { nearbyController.current?.abort(); setNearbyLoading(false); setSearchLoading(false); setSelectedNearbyCategory(null); setQuery(''); setSuggestions([]); setNearbySuggestions([]); setShouldSearch(false); }} style={styles.clearButton}>
                 <Feather name="x-circle" size={18} color={colors.quiet} />
               </Pressable>
             )}
@@ -556,7 +534,7 @@ function DestinationForm({
 
           {kind !== 'rail-station' ? (
             <>
-              <Pressable accessibilityRole="button" onPress={() => void findNearby()} style={[styles.mapAction, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}>
+              <Pressable motion="card" accessibilityRole="button" onPress={() => void findNearby()} style={[styles.mapAction, { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}>
                 <View style={[styles.mapActionIcon, { backgroundColor: colors.surface }]}>
                   {nearbyLoading ? <ActivityIndicator color={colors.accent} /> : <Feather name="crosshair" size={17} color={colors.accent} />}
                 </View>
@@ -566,7 +544,7 @@ function DestinationForm({
                 </View>
                 <Feather name="chevron-right" size={18} color={colors.muted} />
               </Pressable>
-              <Pressable accessibilityRole="button" onPress={openMap} style={[styles.mapAction, { borderColor: colors.line }]}>
+              <Pressable motion="card" accessibilityRole="button" onPress={openMap} style={[styles.mapAction, { borderColor: colors.line }]}>
                 <View style={[styles.mapActionIcon, { backgroundColor: colors.accentSoft }]}><Feather name="map-pin" size={17} color={colors.accent} /></View>
                 <Text style={[styles.mapActionText, { color: colors.ink }]}>{kind === 'bus-dropoff' ? 'Pin a bus drop-off' : 'Choose a point on the map'}</Text>
                 <Feather name="chevron-right" size={18} color={colors.muted} />
@@ -578,7 +556,7 @@ function DestinationForm({
             <>
               <Text style={[styles.coordinateHint, { color: colors.muted }]}>Search a place or address, or enter latitude, longitude. Example: 14.749463, 121.005239</Text>
               {coordinateInput ? (
-                <Pressable accessibilityRole="button" onPress={() => {
+                <Pressable motion="card" accessibilityRole="button" onPress={() => {
                   const coordinateLabel = formatCoordinates(coordinateInput);
                   setCoordinate(coordinateInput);
                   setName('Pinned coordinates');
@@ -603,7 +581,7 @@ function DestinationForm({
                   <Text style={[styles.sectionLabel, { color: colors.muted }]}>Browse nearby</Text>
                   <View style={styles.categoryChips}>
                     {PLACE_CATEGORIES.map((category) => (
-                      <Pressable
+                      <Pressable motion="compact"
                         key={category.query}
                         accessibilityRole="radio"
                         accessibilityState={{ checked: selectedNearbyCategory === category.query }}
@@ -632,7 +610,7 @@ function DestinationForm({
             <View style={[styles.suggestionList, { borderColor: colors.line, backgroundColor: colors.surface }]}>
               {visibleSuggestions.map((suggestion, index) => (
                 <View key={suggestion.id}>
-                  <Pressable accessibilityRole="button" onPress={() => void handleSuggestion(suggestion)} style={styles.suggestionRow}>
+                  <Pressable motion="card" accessibilityRole="button" onPress={() => void handleSuggestion(suggestion)} style={styles.suggestionRow}>
                     <View style={[styles.suggestionIcon, { backgroundColor: colors.accentSoft }]}>
                       <Feather name={suggestion.type === 'poi' ? 'map-pin' : 'map'} size={16} color={colors.accent} />
                     </View>
@@ -667,7 +645,7 @@ function DestinationForm({
               <View style={[styles.stationList, { backgroundColor: colors.surface, borderColor: colors.line }]}>
                 {visibleRailStops.map((stop, index) => (
                   <View key={stop.id}>
-                    <Pressable accessibilityRole="button" onPress={() => searchRailStation(stop.name)} style={styles.stationRow}>
+                    <Pressable motion="card" accessibilityRole="button" onPress={() => searchRailStation(stop.name)} style={styles.stationRow}>
                       <View style={[styles.stationIndex, { backgroundColor: colors.accentSoft }]}><Text style={[styles.stationIndexText, { color: colors.accent }]}>{selectedRailLine.stops.indexOf(stop) + 1}</Text></View>
                       <Text style={[styles.stationName, { color: colors.ink }]}>{stop.name}</Text>
                       <Feather name="search" size={15} color={colors.quiet} />
@@ -687,7 +665,7 @@ function DestinationForm({
             <View style={styles.savedSection}>
               <Text accessibilityRole="header" style={[styles.railTitle, { color: colors.ink }]}>{savedForKind.length ? 'Saved on this device' : 'Start with a nearby result or search'}</Text>
               {savedForKind.length ? savedForKind.map((destination) => (
-                <Pressable key={destination.id} accessibilityRole="button" onPress={() => browseSavedDestination(destination)} style={[styles.savedRow, { borderBottomColor: colors.line }]}>
+                <Pressable motion="card" key={destination.id} accessibilityRole="button" onPress={() => browseSavedDestination(destination)} style={[styles.savedRow, { borderBottomColor: colors.line }]}>
                   <Feather name="bookmark" size={16} color={colors.accent} />
                   <View style={styles.suggestionCopy}>
                     <Text numberOfLines={1} style={[styles.suggestionTitle, { color: colors.ink }]}>{destination.name}</Text>
@@ -708,7 +686,7 @@ function DestinationForm({
         </>
       ) : (
         <>
-          <Pressable accessibilityRole="button" onPress={() => setStep('choose')} style={[styles.selectedPlace, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+          <Pressable motion="card" accessibilityRole="button" onPress={() => setStep('choose')} style={[styles.selectedPlace, { backgroundColor: colors.surface, borderColor: colors.line }]}>
             <View style={[styles.selectedIcon, { backgroundColor: colors.accentSoft }]}>
               <Feather name={kind === 'rail-station' ? 'navigation' : kind === 'bus-dropoff' ? 'truck' : 'map-pin'} size={17} color={colors.accent} />
             </View>
@@ -745,7 +723,7 @@ function DestinationForm({
               {WAKE_RADII.map((value) => {
                 const selected = value === radiusM;
                 return (
-                  <Pressable
+                  <Pressable motion="compact"
                     key={value}
                     accessibilityRole="radio"
                     accessibilityLabel={`${value} metres`}
@@ -766,44 +744,9 @@ function DestinationForm({
                 <Text style={[styles.radiusTitle, { color: colors.ink }]}>Alarm sound</Text>
                 <Text style={[styles.actionDetail, { color: colors.muted }]}>Choose and preview the tone for this stop.</Text>
               </View>
-              <Text numberOfLines={1} style={[styles.selectedToneLabel, { color: colors.accent }]}>{getAlarmTone(ringtoneId).label}</Text>
+              <Text numberOfLines={1} style={[styles.selectedToneLabel, { color: colors.accent }]}>{getAlarmTone(ringtoneId, app.importedAlarmSounds).label}</Text>
             </View>
-            <View style={styles.toneList}>
-              {ALARM_TONES.map((tone) => {
-                const selected = ringtoneId === tone.id;
-                const previewAsset = ALARM_TONE_PREVIEWS[tone.id];
-                const isPreviewing = previewingToneId === tone.id && audioStatus.playing;
-                return (
-                  <View key={tone.id} style={[styles.toneOption, { borderColor: selected ? colors.accent : colors.line, backgroundColor: selected ? colors.accentSoft : colors.surface }]}>
-                    <Pressable
-                      accessibilityRole="radio"
-                      accessibilityLabel={tone.label}
-                      accessibilityHint="Select this alarm sound."
-                      accessibilityState={{ checked: selected }}
-                      onPress={() => chooseTone(tone.id)}
-                      style={styles.toneChoice}
-                    >
-                      <Feather name={selected ? 'check-circle' : 'circle'} size={19} color={selected ? colors.accent : colors.muted} />
-                      <View style={styles.toneCopy}>
-                        <Text style={[styles.toneTitle, { color: colors.ink }]}>{tone.label}</Text>
-                        <Text numberOfLines={1} style={[styles.toneDetail, { color: colors.muted }]}>{tone.detail}</Text>
-                      </View>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={previewAsset ? (isPreviewing ? 'Pause ' : 'Preview ') + tone.label : 'System default preview unavailable'}
-                      accessibilityHint={previewAsset ? 'Play a short sound sample.' : 'The phone notification sound is controlled by system settings.'}
-                      accessibilityState={{ disabled: !previewAsset }}
-                      disabled={!previewAsset}
-                      onPress={() => previewTone(tone.id)}
-                      style={[styles.previewButton, { backgroundColor: colors.raised, opacity: previewAsset ? 1 : 0.45 }]}
-                    >
-                      <Feather name={previewAsset ? isPreviewing ? 'pause' : 'play' : 'volume-1'} size={16} color={colors.accent} />
-                    </Pressable>
-                  </View>
-                );
-              })}
-            </View>
+            <AlarmSoundPicker value={ringtoneId} onChange={chooseTone} disabled={saving} onBusyChange={setSoundBusy} />
             <Text style={[styles.toneNote, { color: colors.muted }]}>Phone notification and Focus settings can still mute an alarm.</Text>
           </View>
 
@@ -895,13 +838,6 @@ const styles = StyleSheet.create({
   soundSection: { gap: 10, paddingTop: 2 },
   soundHeading: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   selectedToneLabel: { maxWidth: 120, fontSize: 12, fontWeight: '700' },
-  toneList: { gap: 7 },
-  toneOption: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 5, borderWidth: 1, borderRadius: 12 },
-  toneChoice: { flex: 1, minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  toneCopy: { flex: 1, gap: 2 },
-  toneTitle: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  toneDetail: { fontSize: 10, lineHeight: 14 },
-  previewButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
   toneNote: { fontSize: 11, lineHeight: 16 },
   warningText: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
   footnote: { textAlign: 'center', fontSize: 12 },

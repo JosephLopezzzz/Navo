@@ -84,12 +84,12 @@ export function UserPreferencesForm({
         )
       ) : (
         <View style={styles.footerSecondaryRow}>
-          <Pressable accessibilityRole="button" disabled={saving} onPress={() => setStep(1)} style={styles.backAction}>
+          <Pressable motion="compact" accessibilityRole="button" disabled={saving} onPress={() => setStep(1)} style={styles.backAction}>
             <Feather name="arrow-left" size={15} color={colors.muted} />
             <Text style={[styles.secondaryText, { color: colors.muted }]}>Back</Text>
           </Pressable>
           {isFirstRun ? (
-            <Pressable accessibilityRole="button" disabled={saving} onPress={() => void save({
+            <Pressable motion="compact" accessibilityRole="button" disabled={saving} onPress={() => void save({
               ...currentPreferences,
               preferredMode: app.firstRun.preferences.preferredMode,
               preferredRailLineId: app.firstRun.preferences.preferredRailLineId,
@@ -146,7 +146,7 @@ export function UserPreferencesForm({
       ) : (
         <>
           <View style={styles.secondHeader}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Back to personal details" onPress={() => setStep(1)} style={styles.headerBack}>
+            <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Back to personal details" onPress={() => setStep(1)} style={styles.headerBack}>
               <Feather name="arrow-left" size={19} color={colors.ink} />
             </Pressable>
             <Text style={[styles.secondHeaderTitle, { color: colors.ink }]}>Your preferences</Text>
@@ -167,7 +167,7 @@ export function UserPreferencesForm({
               {modes.map((mode) => {
                 const selected = preferredMode === mode.id;
                 return (
-                  <Pressable key={mode.id} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setPreferredMode(mode.id)} style={[styles.modeOption, { backgroundColor: selected ? colors.accentSoft : colors.surface, borderColor: selected ? colors.accent : colors.line }]}>
+                  <Pressable motion="compact" key={mode.id} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setPreferredMode(mode.id)} style={[styles.modeOption, { backgroundColor: selected ? colors.accentSoft : colors.surface, borderColor: selected ? colors.accent : colors.line }]}>
                     <Feather name={mode.icon} size={18} color={selected ? colors.accent : colors.muted} />
                     <Text style={[styles.modeText, { color: selected ? colors.accent : colors.ink }]}>{mode.title}</Text>
                   </Pressable>
@@ -183,7 +183,7 @@ export function UserPreferencesForm({
                 {railLines.map((line) => {
                   const selected = preferredRailLineId === line.id;
                   return (
-                    <Pressable key={line.id} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setPreferredRailLineId(line.id)} style={[styles.lineOption, { backgroundColor: selected ? colors.accentSoft : colors.surface, borderColor: selected ? colors.accent : colors.line }]}>
+                    <Pressable motion="card" key={line.id} accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={() => setPreferredRailLineId(line.id)} style={[styles.lineOption, { backgroundColor: selected ? colors.accentSoft : colors.surface, borderColor: selected ? colors.accent : colors.line }]}>
                       <View style={styles.lineCopy}>
                         <Text style={[styles.lineName, { color: colors.ink }]}>{line.name}</Text>
                         <Text style={[styles.lineDetail, { color: colors.muted }]}>Put these stations first</Text>
@@ -208,7 +208,7 @@ export function UserPreferencesForm({
 function ChoiceRow({ title, detail, selected, onPress }: { title: string; detail: string; selected: boolean; onPress: () => void }) {
   const colors = useNavoColors();
   return (
-    <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={onPress} style={[styles.useOption, { backgroundColor: selected ? colors.accentSoft : colors.surface, borderColor: selected ? colors.accent : colors.line }]}>
+    <Pressable motion="card" accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={onPress} style={[styles.useOption, { backgroundColor: selected ? colors.accentSoft : colors.surface, borderColor: selected ? colors.accent : colors.line }]}>
       <View style={styles.useCopy}><Text style={[styles.useTitle, { color: colors.ink }]}>{title}</Text><Text style={[styles.useDetail, { color: colors.muted }]}>{detail}</Text></View>
       <View style={[styles.radio, { borderColor: selected ? colors.accent : colors.quiet }]}>{selected ? <View style={[styles.radioDot, { backgroundColor: colors.accent }]} /> : null}</View>
     </Pressable>

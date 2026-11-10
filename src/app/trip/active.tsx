@@ -98,7 +98,7 @@ export default function ActiveTripScreen() {
     <Screen>
       <View style={styles.brand}>
         <Text style={[styles.wordmark, { color: colors.ink }]}>Navo</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="End trip" onPress={askToEnd} hitSlop={10} style={styles.endButton}>
+        <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="End trip" onPress={askToEnd} hitSlop={10} style={styles.endButton}>
           <Feather name="x" size={21} color={colors.muted} />
         </Pressable>
       </View>

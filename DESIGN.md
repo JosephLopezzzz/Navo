@@ -146,6 +146,14 @@ Use the native platform sans serif with a clear scale: 32px screen titles, 19px 
 
 Use the platform's stack, tabs, status bar, switches, system permissions, and safe areas. Light mode is the persisted default even when the device uses dark appearance; the rider can choose Obsidian in Settings, and native controls follow that saved choice. Keep the route sequence and manual confirmation available when location is unavailable. Do not add map decoration until route coordinates have been checked.
 
+## Press feedback
+
+Use `NavoPressable` for custom buttons, links, chips, tabs, and actionable card regions. It sinks inward over 90ms and returns with a short, softly damped spring. Motion values live in `src/theme/motion.ts`: the default `button` scales to 0.98 and shifts down 1dp, `card` scales to 0.99 and shifts down 1dp for wide rows, and `compact` scales to 0.97 and shifts down 0.5dp for icon controls and chips. Keep existing color, selected, disabled, and loading feedback. Actions run through their normal handlers without waiting for animation.
+
+Animate the existing host without adding layout wrappers. Use array transforms when composing a caller transform with press motion; string transforms retain their original appearance without added motion. Independent actions inside a saved-alarm card animate individually, while its container and native switch stay stationary. Modal backdrops opt out with `motion="none"`, and guide-blocking shades, native switches, text fields, system navigation, and map gestures keep platform behavior.
+
+One app-level provider observes Reduce Motion, interaction focus, and navigation. Until the device preference is known, or while Reduce Motion is enabled, keep pressed color feedback without spatial motion. Cancelled touches, focus loss, disabling, and route changes reset feedback; repeated presses interrupt the current animation. Native-device validation must cover both themes, rapid and held presses, scroll cancellation, navigation, guide highlights, and Reduce Motion. Export and static checks do not establish device smoothness.
+
 ## Product truth
 
 Keep existing route rules and alert behavior. Rail routes currently have station order but no audited coordinates; bus coordinates are rider-saved. Show when location and notification limits affect alerts, retain the manual progress action, and do not imply an ETA, live feed, guaranteed delivery, or alarm-clock override.

@@ -98,7 +98,7 @@ export default function EnableAlarmScreen() {
   return (
     <Screen footer={footer}>
       <View style={styles.heading}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to saved alarms" onPress={keepOff} style={styles.backButton}>
+        <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Back to saved alarms" onPress={keepOff} style={styles.backButton}>
           <Feather name="arrow-left" size={19} color={colors.ink} />
         </Pressable>
         <ScreenTitle>Enable alarm</ScreenTitle>

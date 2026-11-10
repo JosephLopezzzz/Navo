@@ -126,7 +126,7 @@ function SettingsGroup({ title, children }: PropsWithChildren<{ title: string }>
 function SettingLink({ icon, title, detail, onPress }: { icon: keyof typeof Feather.glyphMap; title: string; detail: string; onPress: () => void }) {
   const colors = useNavoColors();
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.settingLink}>
+    <Pressable motion="card" accessibilityRole="button" onPress={onPress} style={styles.settingLink}>
       <View style={[styles.rowIcon, { backgroundColor: colors.accentSoft }]}><Feather name={icon} size={15} color={colors.accent} /></View>
       <View style={styles.rowCopy}>
         <Text style={[styles.settingTitle, { color: colors.ink }]}>{title}</Text>
@@ -140,7 +140,7 @@ function SettingLink({ icon, title, detail, onPress }: { icon: keyof typeof Feat
 function SamplingOption({ label, detail, selected, onPress }: { label: string; detail: string; selected: boolean; onPress: () => void }) {
   const colors = useNavoColors();
   return (
-    <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={onPress} style={[styles.samplingOption, selected && { backgroundColor: colors.surface }]}>
+    <Pressable motion="compact" accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={onPress} style={[styles.samplingOption, selected && { backgroundColor: colors.surface }]}>
       <Text style={[styles.samplingLabel, { color: selected ? colors.ink : colors.muted }]}>{label}</Text>
       <Text style={[styles.optionDetail, { color: colors.muted }]}>{detail}</Text>
     </Pressable>
@@ -150,7 +150,7 @@ function SamplingOption({ label, detail, selected, onPress }: { label: string; d
 function AppearanceOption({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const colors = useNavoColors();
   return (
-    <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={onPress} style={[styles.appearanceOption, selected && { backgroundColor: colors.surface }]}>
+    <Pressable motion="compact" accessibilityRole="radio" accessibilityState={{ checked: selected }} onPress={onPress} style={[styles.appearanceOption, selected && { backgroundColor: colors.surface }]}>
       <Text style={[styles.appearanceLabel, { color: selected ? colors.accent : colors.muted }]}>{label}</Text>
     </Pressable>
   );

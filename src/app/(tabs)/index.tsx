@@ -1,15 +1,14 @@
 import { router, useFocusEffect } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Linking, Modal, Pressable as NativePressable, StyleSheet, Switch, Text, View, type ScrollViewInstance } from 'react-native';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { ActivityIndicator, AppState, Linking, Modal, StyleSheet, Switch, Text, View, type ScrollViewInstance } from 'react-native';
 import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import Svg, { Circle, Path } from 'react-native-svg';
-import * as Notifications from 'expo-notifications';
 import { Screen, ScreenTitle, Subtle } from '../../components/ui';
 import { armDestinationAlarm, disarmDestinationAlarm } from '../../domain/destination-alarm';
 import { ALARM_TONES, getAlarmTone, type AlarmToneId } from '../../domain/alarm-tones';
-import { ALARM_TONE_PREVIEWS } from '../../data/alarm-tone-previews';
+import { AlarmSoundPicker } from '../../components/AlarmSoundPicker';
+import { dismissAlarmNotification } from '../../services/alarm-notification-delivery';
 import type { DestinationAlarm, SavedDestination } from '../../domain/models';
 import { beginBackgroundLocation, stopBackgroundLocationIfIdle } from '../../services/background-location';
 import { createPlacesSearchSessionId } from '../../services/tomtom';
@@ -50,16 +49,13 @@ export default function RideHomeScreen() {
   const app = useAppState();
   const guide = useGuideControls();
   const [busyAlarmId, setBusyAlarmId] = useState<string | null>(null);
-  const [pressedDestinationId, setPressedDestinationId] = useState<string | null>(null);
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [permissionSummary, setPermissionSummary] = useState<AlarmPermissionSummary | null>(null);
   const [destinationModal, setDestinationModal] = useState<DestinationModalState>(null);
   const [pendingToneId, setPendingToneId] = useState<AlarmToneId>(ALARM_TONES[0].id);
-  const [previewingToneId, setPreviewingToneId] = useState<AlarmToneId | null>(null);
+  const [soundBusy, setSoundBusy] = useState(false);
   const [savingTone, setSavingTone] = useState(false);
   const [toneSaveProblem, setToneSaveProblem] = useState<string | null>(null);
-  const audioPlayer = useAudioPlayer(null);
-  const audioStatus = useAudioPlayerStatus(audioPlayer);
   const screenScrollRef = useRef<ScrollViewInstance>(null);
 
   const refreshPermissions = useCallback(() => {
@@ -113,7 +109,7 @@ export default function RideHomeScreen() {
             ? { ...current.firstRun, permissionNoticeAlarmId: null }
             : current.firstRun,
         }));
-        if (alarm.notificationIdentifier) await Notifications.dismissNotificationAsync(alarm.notificationIdentifier).catch(() => undefined);
+        if (alarm.notificationIdentifier) await dismissAlarmNotification(alarm.notificationIdentifier).catch(() => undefined);
         await stopBackgroundLocationIfIdle();
       }
     } catch (error) {
@@ -156,7 +152,7 @@ export default function RideHomeScreen() {
           ? { ...current.firstRun, permissionNoticeAlarmId: null }
           : current.firstRun,
       }));
-      if (alarm?.notificationIdentifier) await Notifications.dismissNotificationAsync(alarm.notificationIdentifier).catch(() => undefined);
+      if (alarm?.notificationIdentifier) await dismissAlarmNotification(alarm.notificationIdentifier).catch(() => undefined);
       await stopBackgroundLocationIfIdle();
     } catch {
       setActionProblem('Navo could not remove this destination from your device. Try again.');
@@ -166,38 +162,23 @@ export default function RideHomeScreen() {
   };
 
   const showOptions = (destination: SavedDestination) => {
-    audioPlayer.pause();
-    setPreviewingToneId(null);
     setDestinationModal({ mode: 'options', destination });
   };
 
   const closeDestinationModal = () => {
-    audioPlayer.pause();
-    setPreviewingToneId(null);
+    if (soundBusy) return;
     setDestinationModal(null);
   };
 
   const showTonePicker = (destination: SavedDestination) => {
     const alarm = app.destinationAlarms.find((item) => item.destinationId === destination.id);
-    setPendingToneId(getAlarmTone(alarm?.ringtoneId).id);
+    setPendingToneId(getAlarmTone(alarm?.ringtoneId, app.importedAlarmSounds).id);
     setToneSaveProblem(null);
     setDestinationModal({ mode: 'sound', destination });
   };
 
-  const previewTone = (toneId: AlarmToneId) => {
-    const previewAsset = ALARM_TONE_PREVIEWS[toneId];
-    if (!previewAsset) return;
-    if (previewingToneId === toneId && audioStatus.playing) {
-      audioPlayer.pause();
-      return;
-    }
-    setPreviewingToneId(toneId);
-    audioPlayer.replace(previewAsset);
-    audioPlayer.play();
-  };
-
   const saveTone = async () => {
-    if (destinationModal?.mode !== 'sound') return;
+    if (destinationModal?.mode !== 'sound' || soundBusy) return;
     const alarm = app.destinationAlarms.find((item) => item.destinationId === destinationModal.destination.id);
     if (!alarm) {
       setToneSaveProblem('This saved alarm is no longer available.');
@@ -226,8 +207,6 @@ export default function RideHomeScreen() {
   };
 
   const requestDestinationRemoval = (destination: SavedDestination) => {
-    audioPlayer.pause();
-    setPreviewingToneId(null);
     setDestinationModal({ mode: 'remove', destination });
   };
 
@@ -281,7 +260,7 @@ export default function RideHomeScreen() {
       </View>
 
       {app.activeTrip && app.activeRoute ? (
-        <Pressable accessibilityRole="button" onPress={() => router.push('/trip/active')} style={({ pressed }) => [styles.tripCard, { backgroundColor: pressed ? colors.accentHoverSoft : colors.accentSoft, borderColor: pressed ? colors.accent : 'transparent' }]}>
+        <Pressable motion="card" accessibilityRole="button" onPress={() => router.push('/trip/active')} style={({ pressed }) => [styles.tripCard, { backgroundColor: pressed ? colors.accentHoverSoft : colors.accentSoft, borderColor: pressed ? colors.accent : 'transparent' }]}>
           <View style={[styles.tripIcon, { backgroundColor: colors.surface }]}><Feather name="navigation" size={17} color={colors.accent} /></View>
           <View style={styles.tripCopy}>
             <Text style={[styles.tripTitle, { color: colors.ink }]}>Trip in progress</Text>
@@ -319,20 +298,9 @@ export default function RideHomeScreen() {
             const status = alarmStatus(alarm, app.lastLocationAt, app.locationProblem);
             const isBusy = busyAlarmId === alarm?.id || busyAlarmId === destination.id;
             const card = (
-              <View
-                onTouchStart={() => setPressedDestinationId(destination.id)}
-                onTouchEnd={() => setPressedDestinationId(null)}
-                onTouchCancel={() => setPressedDestinationId(null)}
-                style={[
-                  styles.destinationCard,
-                  {
-                    backgroundColor: pressedDestinationId === destination.id ? colors.accentSoft : colors.surface,
-                    borderColor: pressedDestinationId === destination.id ? colors.accent : colors.line,
-                  },
-                ]}
-              >
+              <View style={[styles.destinationCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
                 <View style={styles.cardTop}>
-                  <NativePressable accessibilityRole="button" accessibilityLabel={`Edit alarm for ${destination.name}`} onPress={() => { if (guide.visible) guide.finishGuide(); router.push({ pathname: '/destination/pick', params: { destinationId: destination.id } }); }} style={styles.destinationMain}>
+                  <Pressable motion="card" accessibilityRole="button" accessibilityLabel={`Edit alarm for ${destination.name}`} onPress={() => { if (guide.visible) guide.finishGuide(); router.push({ pathname: '/destination/pick', params: { destinationId: destination.id } }); }} style={({ pressed }) => [styles.destinationMain, { backgroundColor: pressed ? colors.accentSoft : 'transparent' }]}>
                     <View style={[styles.destinationIcon, { backgroundColor: colors.accentSoft }]}>
                       <Feather name={destination.kind === 'rail-station' ? 'navigation' : destination.kind === 'bus-dropoff' ? 'truck' : 'map-pin'} size={17} color={colors.accent} />
                     </View>
@@ -341,8 +309,8 @@ export default function RideHomeScreen() {
                       <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.destinationName, { color: colors.ink }]}>{destination.name}</Text>
                       <Text numberOfLines={1} style={[styles.destinationSubtitle, { color: colors.muted }]}>{destination.subtitle || (destination.source === 'map-pin' ? 'Pinned location' : 'Place selected from search')}</Text>
                     </View>
-                  </NativePressable>
-                  <Pressable accessibilityRole="button" accessibilityLabel={`More options for ${destination.name}`} onPress={() => { if (guide.visible) guide.finishGuide(); showOptions(destination); }} hitSlop={6} style={styles.moreButton}>
+                  </Pressable>
+                  <Pressable motion="compact" accessibilityRole="button" accessibilityLabel={`More options for ${destination.name}`} onPress={() => { if (guide.visible) guide.finishGuide(); showOptions(destination); }} hitSlop={6} style={styles.moreButton}>
                     <Feather name="more-vertical" size={18} color={colors.muted} />
                   </Pressable>
                 </View>
@@ -350,15 +318,15 @@ export default function RideHomeScreen() {
                   <View style={styles.alarmStateCopy}>
                     <Text style={[styles.alarmState, { color: alarm?.enabled ? colors.success : colors.muted }]}>{alarm?.enabled ? 'On · alerts near this stop' : 'Off'}</Text>
                     {status ? <Text numberOfLines={2} style={[styles.statusDetail, { color: colors.muted }]}>{status.label === 'Monitoring' ? status.detail : `${status.label} · ${status.detail}`}</Text> : null}
-                    <Pressable
+                    <Pressable motion="compact"
                       accessibilityRole="button"
-                      accessibilityLabel={'Alarm sound for ' + destination.name + ': ' + getAlarmTone(alarm?.ringtoneId).label}
+                      accessibilityLabel={'Alarm sound for ' + destination.name + ': ' + getAlarmTone(alarm?.ringtoneId, app.importedAlarmSounds).label}
                       accessibilityHint="Choose and preview the sound for this destination alarm."
                       onPress={() => showTonePicker(destination)}
                       style={styles.soundShortcut}
                     >
                       <Feather name="volume-2" size={13} color={colors.accent} />
-                      <Text numberOfLines={1} style={[styles.soundShortcutText, { color: colors.accent }]}>Sound · {getAlarmTone(alarm?.ringtoneId).label}</Text>
+                      <Text numberOfLines={1} style={[styles.soundShortcutText, { color: colors.accent }]}>Sound · {getAlarmTone(alarm?.ringtoneId, app.importedAlarmSounds).label}</Text>
                       <Feather name="chevron-right" size={13} color={colors.accent} />
                     </Pressable>
                   </View>
@@ -386,7 +354,7 @@ export default function RideHomeScreen() {
         <View style={[styles.permissionNotice, { backgroundColor: colors.surface, borderColor: colors.line }]}>
           <Text style={[styles.permissionTitle, { color: colors.warning }]}>Your alarm is still off</Text>
           <Text style={[styles.noticeText, { color: colors.muted }]}>{permissionNoticeText}</Text>
-          <Pressable accessibilityRole="button" onPress={() => { void Linking.openSettings().catch(() => setActionProblem('Phone settings could not be opened.')); }} style={[styles.settingsAction, { backgroundColor: colors.raised }]}>
+          <Pressable motion="card" accessibilityRole="button" onPress={() => { void Linking.openSettings().catch(() => setActionProblem('Phone settings could not be opened.')); }} style={[styles.settingsAction, { backgroundColor: colors.raised }]}>
             <Text style={[styles.settingsActionText, { color: colors.ink }]}>Open phone settings</Text>
             <Feather name="external-link" size={15} color={colors.accent} />
           </Pressable>
@@ -394,7 +362,7 @@ export default function RideHomeScreen() {
       ) : null}
 
       {app.destinations.length > 0 && !app.firstRun.guideCompleted ? (
-        <Pressable accessibilityRole="button" onPress={guide.startGuide} style={({ pressed }) => [styles.quickTour, { backgroundColor: pressed ? colors.accentHoverSoft : colors.raised, borderColor: pressed ? colors.accent : 'transparent' }]}>
+        <Pressable motion="card" accessibilityRole="button" onPress={guide.startGuide} style={({ pressed }) => [styles.quickTour, { backgroundColor: pressed ? colors.accentHoverSoft : colors.raised, borderColor: pressed ? colors.accent : 'transparent' }]}>
           <View style={[styles.quickTourIcon, { backgroundColor: colors.accentSoft }]}><Feather name="help-circle" size={17} color={colors.accent} /></View>
           <View style={styles.tripCopy}>
             <Text style={[styles.tripTitle, { color: colors.ink }]}>A quick tour?</Text>
@@ -407,10 +375,13 @@ export default function RideHomeScreen() {
       {app.destinations.length > 0 && !app.settings.locationNoticeDismissed ? (
         <View style={[styles.notice, { backgroundColor: colors.raised }]}>
           <Feather name="info" size={16} color={colors.accent} />
-          <Text style={[styles.noticeText, { color: colors.muted }]}>Location runs while an alarm or trip is active.{' '}
-            <Text accessibilityRole="link" onPress={() => router.push('/legal/location-safety')} style={{ color: colors.accent }}>How alarms work</Text>
-          </Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss location notice" onPress={dismissNotice} style={styles.dismissButton}>
+          <View style={styles.noticeCopy}>
+            <Text style={[styles.noticeMessage, { color: colors.muted }]}>Location runs while an alarm or trip is active.</Text>
+            <Pressable motion="compact" accessibilityRole="link" onPress={() => router.push('/legal/location-safety')} style={styles.noticeLink}>
+              <Text style={[styles.noticeLinkText, { color: colors.accent }]}>How alarms work</Text>
+            </Pressable>
+          </View>
+          <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Dismiss location notice" onPress={dismissNotice} style={styles.dismissButton}>
             <Feather name="x" size={16} color={colors.muted} />
           </Pressable>
         </View>
@@ -425,7 +396,7 @@ export default function RideHomeScreen() {
         visible={destinationModal !== null}
       >
         <View style={styles.modalRoot}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss dialog" onPress={closeDestinationModal} style={StyleSheet.absoluteFill} />
+          <Pressable motion="none" accessibilityRole="button" accessibilityLabel="Dismiss dialog" onPress={closeDestinationModal} style={StyleSheet.absoluteFill} />
           {destinationModal ? (
             <View accessibilityViewIsModal style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
               <View style={styles.modalHeading}>
@@ -451,7 +422,7 @@ export default function RideHomeScreen() {
                         : destinationModal.destination.subtitle || 'Manage this saved destination and its alarm.'}
                   </Text>
                 </View>
-                <Pressable accessibilityRole="button" accessibilityLabel="Close dialog" onPress={closeDestinationModal} style={styles.modalClose}>
+                <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Close dialog" disabled={soundBusy || savingTone} onPress={closeDestinationModal} style={styles.modalClose}>
                   <Feather name="x" size={19} color={colors.muted} />
                 </Pressable>
               </View>
@@ -465,9 +436,9 @@ export default function RideHomeScreen() {
                     <Text style={[styles.modalPrimaryText, { color: colors.onAccent }]}>Edit alarm</Text>
                     <Feather name="arrow-right" size={16} color={colors.onAccent} />
                   </Pressable>
-                  <Pressable accessibilityRole="button" onPress={() => showTonePicker(destinationModal.destination)} style={[styles.modalSoundAction, { borderColor: colors.line, backgroundColor: colors.raised }]}>
+                  <Pressable motion="card" accessibilityRole="button" onPress={() => showTonePicker(destinationModal.destination)} style={[styles.modalSoundAction, { borderColor: colors.line, backgroundColor: colors.raised }]}>
                     <Feather name="volume-2" size={17} color={colors.accent} />
-                    <Text style={[styles.modalSoundActionText, { color: colors.ink }]}>Alarm sound · {getAlarmTone(app.destinationAlarms.find((item) => item.destinationId === destinationModal.destination.id)?.ringtoneId).label}</Text>
+                    <Text style={[styles.modalSoundActionText, { color: colors.ink }]}>Alarm sound · {getAlarmTone(app.destinationAlarms.find((item) => item.destinationId === destinationModal.destination.id)?.ringtoneId, app.importedAlarmSounds).label}</Text>
                     <Feather name="chevron-right" size={16} color={colors.accent} />
                   </Pressable>
                   <Pressable accessibilityRole="button" onPress={() => requestDestinationRemoval(destinationModal.destination)} style={({ pressed }) => [styles.modalDestructive, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}>
@@ -480,50 +451,15 @@ export default function RideHomeScreen() {
                 </View>
               ) : destinationModal.mode === 'sound' ? (
                 <>
-                  <View style={styles.modalToneList}>
-                    {ALARM_TONES.map((tone) => {
-                      const selected = pendingToneId === tone.id;
-                      const isPreviewing = previewingToneId === tone.id && audioStatus.playing;
-                      const previewAsset = ALARM_TONE_PREVIEWS[tone.id];
-                      return (
-                        <View key={tone.id} style={[styles.toneOption, { borderColor: selected ? colors.accent : colors.line, backgroundColor: selected ? colors.accentSoft : colors.raised }]}>
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={tone.label + (selected ? ', selected' : '')}
-                            accessibilityHint="Select this alarm sound."
-                            accessibilityState={{ selected }}
-                            onPress={() => setPendingToneId(tone.id)}
-                            style={styles.toneChoice}
-                          >
-                            <Feather name={selected ? 'check-circle' : 'circle'} size={19} color={selected ? colors.accent : colors.muted} />
-                            <View style={styles.toneCopy}>
-                              <Text style={[styles.toneTitle, { color: colors.ink }]}>{tone.label}</Text>
-                              <Text numberOfLines={1} style={[styles.toneDetail, { color: colors.muted }]}>{tone.detail}</Text>
-                            </View>
-                          </Pressable>
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel={previewAsset ? (isPreviewing ? 'Pause ' : 'Preview ') + tone.label : 'System default preview unavailable'}
-                            accessibilityHint={previewAsset ? 'Play a short sound sample.' : 'The phone’s notification sound is controlled by system settings.'}
-                            accessibilityState={{ disabled: !previewAsset }}
-                            disabled={!previewAsset}
-                            onPress={() => previewTone(tone.id)}
-                            style={[styles.previewButton, { backgroundColor: colors.surface, opacity: previewAsset ? 1 : 0.45 }]}
-                          >
-                            <Feather name={previewAsset ? isPreviewing ? 'pause' : 'play' : 'volume-1'} size={16} color={colors.accent} />
-                          </Pressable>
-                        </View>
-                      );
-                    })}
-                  </View>
+                  <AlarmSoundPicker value={pendingToneId} onChange={setPendingToneId} disabled={savingTone} onBusyChange={setSoundBusy} scroll />
                   <Text style={[styles.toneNote, { color: colors.muted }]}>Your phone’s notification and Focus settings can still mute an alarm.</Text>
                   {toneSaveProblem ? <Text accessibilityRole="alert" style={[styles.toneProblem, { color: colors.danger }]}>{toneSaveProblem}</Text> : null}
                   <View style={styles.modalActions}>
-                    <Pressable accessibilityRole="button" disabled={savingTone} onPress={() => void saveTone()} style={({ pressed }) => [styles.modalPrimary, { backgroundColor: pressed ? colors.accentHover : colors.accent, opacity: savingTone ? 0.6 : 1 }]}>
+                    <Pressable accessibilityRole="button" disabled={savingTone || soundBusy} onPress={() => void saveTone()} style={({ pressed }) => [styles.modalPrimary, { backgroundColor: pressed ? colors.accentHover : colors.accent, opacity: savingTone || soundBusy ? 0.6 : 1 }]}>
                       <Feather name="check" size={17} color={colors.onAccent} />
                       <Text style={[styles.modalPrimaryText, { color: colors.onAccent }]}>{savingTone ? 'Saving sound…' : 'Save sound'}</Text>
                     </Pressable>
-                    <Pressable accessibilityRole="button" disabled={savingTone} onPress={closeDestinationModal} style={styles.modalCancel}>
+                    <Pressable accessibilityRole="button" disabled={savingTone || soundBusy} onPress={closeDestinationModal} style={styles.modalCancel}>
                       <Text style={[styles.modalCancelText, { color: colors.muted }]}>Cancel</Text>
                     </Pressable>
                   </View>
@@ -613,11 +549,15 @@ const styles = StyleSheet.create({
   settingsActionText: { fontSize: 12, fontWeight: '700' },
   quickTour: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, borderRadius: 14 },
   quickTourIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
-  notice: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 9, paddingLeft: 11, paddingRight: 5, borderRadius: 12 },
+  notice: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 9, paddingLeft: 11, paddingRight: 5, paddingVertical: 6, borderRadius: 12 },
+  noticeCopy: { flex: 1 },
+  noticeMessage: { fontSize: 11, lineHeight: 16 },
+  noticeLink: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', borderRadius: 6 },
+  noticeLinkText: { fontSize: 11, lineHeight: 16, fontWeight: '600' },
   dismissButton: { width: 40, height: 44, alignItems: 'center', justifyContent: 'center' },
   actionProblem: { fontSize: 13, lineHeight: 19 },
   modalRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, backgroundColor: 'rgba(5, 12, 23, 0.68)' },
-  modalCard: { width: '100%', maxWidth: 400, gap: 15, padding: 18, borderWidth: 1, borderRadius: 22, elevation: 20 },
+  modalCard: { width: '100%', maxWidth: 400, maxHeight: '94%', gap: 15, padding: 18, borderWidth: 1, borderRadius: 22, elevation: 20 },
   modalHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   modalIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   modalHeadingCopy: { flex: 1, gap: 4, paddingTop: 1 },
@@ -629,13 +569,6 @@ const styles = StyleSheet.create({
   modalActions: { gap: 8 },
   modalSoundAction: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 13, borderWidth: 1, borderRadius: 13 },
   modalSoundActionText: { flex: 1, fontSize: 12, lineHeight: 17, fontWeight: '600' },
-  modalToneList: { gap: 7 },
-  toneOption: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 5, borderWidth: 1, borderRadius: 12 },
-  toneChoice: { flex: 1, minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  toneCopy: { flex: 1, gap: 2 },
-  toneTitle: { fontSize: 12, lineHeight: 16, fontWeight: '700' },
-  toneDetail: { fontSize: 10, lineHeight: 14 },
-  previewButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
   toneNote: { fontSize: 10, lineHeight: 15 },
   toneProblem: { fontSize: 11, lineHeight: 16 },
   modalPrimary: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 14, borderRadius: 14 },

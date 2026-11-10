@@ -40,7 +40,7 @@ export default function AlarmPermissionsScreen() {
   return (
     <Screen>
       <View style={styles.heading}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to settings" onPress={() => router.back()} style={styles.backButton}>
+        <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Back to settings" onPress={() => router.back()} style={styles.backButton}>
           <Feather name="arrow-left" size={19} color={colors.ink} />
         </Pressable>
         <ScreenTitle>Alarm permissions</ScreenTitle>
@@ -57,7 +57,7 @@ export default function AlarmPermissionsScreen() {
       </View>
       {problem ? <Text accessibilityRole="alert" style={[styles.problem, { color: colors.danger }]}>{problem}</Text> : null}
       <PrimaryButton title="Open phone settings" onPress={openPhoneSettings} />
-      <Pressable accessibilityRole="button" accessibilityLabel="Refresh permission status" onPress={() => void refresh()} style={styles.refresh}>
+      <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Refresh permission status" onPress={() => void refresh()} style={styles.refresh}>
         <Feather name={refreshing ? 'loader' : 'refresh-cw'} size={15} color={colors.accent} />
         <Text style={[styles.refreshText, { color: colors.accent }]}>{refreshing ? 'Checking…' : 'Refresh status'}</Text>
       </Pressable>

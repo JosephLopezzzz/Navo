@@ -17,7 +17,7 @@ export default function LegalInformationScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.backButton}>
+        <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.backButton}>
           <Feather name="arrow-left" size={20} color={colors.ink} />
         </Pressable>
         <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>{page.title}</Text>

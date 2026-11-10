@@ -28,7 +28,7 @@ export default function RoutesScreen() {
       <View style={[styles.lineList, { backgroundColor: colors.surface, borderColor: colors.line }]}>
         {railLines.map((line, index) => (
           <View key={line.id}>
-            <Pressable accessibilityRole="button" onPress={() => router.push(`/trip/setup?lineId=${line.id}`)} style={({ pressed }) => [styles.lineRow, pressed && { borderWidth: 1, borderColor: colors.accent }]}>
+            <Pressable motion="card" accessibilityRole="button" onPress={() => router.push(`/trip/setup?lineId=${line.id}`)} style={({ pressed }) => [styles.lineRow, pressed && { borderWidth: 1, borderColor: colors.accent }]}>
               <View style={[styles.lineIcon, { backgroundColor: colors.accentSoft }]}><Feather name="navigation" size={17} color={colors.accent} /></View>
               <View style={styles.lineCopy}>
                 <View style={styles.lineNameRow}>
@@ -58,7 +58,7 @@ export default function RoutesScreen() {
           <Subtle style={styles.busEmptyText}>Add your own bus stops in travel order. Record locations to enable automatic checks.</Subtle>
         </View>
       ) : customBusRoutes.map((route) => (
-        <Pressable key={route.id} accessibilityRole="button" onPress={() => router.push(`/trip/setup?routeId=${route.id}`)} style={[styles.savedRoute, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+        <Pressable motion="card" key={route.id} accessibilityRole="button" onPress={() => router.push(`/trip/setup?routeId=${route.id}`)} style={[styles.savedRoute, { backgroundColor: colors.surface, borderColor: colors.line }]}>
           <View style={styles.savedRouteCopy}>
             <Text style={[styles.lineName, { color: colors.ink }]}>{route.name}</Text>
             <Text style={[styles.direction, { color: colors.muted }]}>{route.direction}</Text>

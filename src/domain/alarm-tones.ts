@@ -1,3 +1,5 @@
+import type { ImportedAlarmSound } from './imported-alarm-sounds';
+
 export const DEFAULT_ALARM_TONE_ID = 'system-default';
 
 export const ALARM_TONES = [
@@ -31,13 +33,34 @@ export const ALARM_TONES = [
   },
 ] as const;
 
-export type AlarmToneId = (typeof ALARM_TONES)[number]['id'];
-export type AlarmTone = (typeof ALARM_TONES)[number];
+export type BuiltInAlarmToneId = (typeof ALARM_TONES)[number]['id'];
+export type AlarmToneId = BuiltInAlarmToneId | ImportedAlarmSound['id'];
+export interface AlarmTone {
+  id: AlarmToneId;
+  label: string;
+  detail: string;
+  soundFileName: string | null;
+  androidChannelId: string;
+  imported?: ImportedAlarmSound;
+}
 
-export function isAlarmToneId(value: unknown): value is AlarmToneId {
+export function isBuiltInAlarmToneId(value: unknown): value is BuiltInAlarmToneId {
   return ALARM_TONES.some((tone) => tone.id === value);
 }
 
-export function getAlarmTone(value: unknown): AlarmTone {
+export function isAlarmToneId(value: unknown, importedSounds: ImportedAlarmSound[] = []): value is AlarmToneId {
+  return isBuiltInAlarmToneId(value) || importedSounds.some((sound) => sound.id === value);
+}
+
+export function getAlarmTone(value: unknown, importedSounds: ImportedAlarmSound[] = []): AlarmTone {
+  const imported = importedSounds.find((sound) => sound.id === value);
+  if (imported) return {
+    id: imported.id,
+    label: imported.label,
+    detail: `${Math.ceil(imported.durationSeconds)} sec · imported audio`,
+    soundFileName: imported.fileName,
+    androidChannelId: `navo-imported-${imported.id.slice('imported:'.length)}-v1`,
+    imported,
+  };
   return ALARM_TONES.find((tone) => tone.id === value) ?? ALARM_TONES[0];
 }

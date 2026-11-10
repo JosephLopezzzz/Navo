@@ -40,7 +40,7 @@ export default function TabLayout() {
         tabBarAccessibilityLabel: 'Destination alarms',
         tabBarButton: (props) => {
           const { children, style, href: _href, ref: _ref, ...buttonProps } = props;
-          return <Pressable {...buttonProps} style={style}>{children}</Pressable>;
+          return <Pressable motion="compact" {...buttonProps} style={style}>{children}</Pressable>;
         },
         tabBarIcon: ({ focused, size }) => <View style={[styles.iconFrame, { backgroundColor: focused ? colors.accentSoft : 'transparent' }]}><Feather name="clock" color={focused ? colors.accent : colors.muted} size={size} /></View>,
       }} />
@@ -50,7 +50,7 @@ export default function TabLayout() {
         tabBarButton: (props) => {
           const { children, style, href: _href, ref: _ref, ...buttonProps } = props;
           const onPress = buttonProps.onPress;
-          return <GuideTarget id="routes-tab" style={styles.buttonTarget}><Pressable {...buttonProps} onPress={(event) => { if (guide.visible) guide.finishGuide(); onPress?.(event); }} style={style}>{children}</Pressable></GuideTarget>;
+          return <GuideTarget id="routes-tab" style={styles.buttonTarget}><Pressable motion="compact" {...buttonProps} onPress={(event) => { if (guide.visible) guide.finishGuide(); onPress?.(event); }} style={style}>{children}</Pressable></GuideTarget>;
         },
         tabBarIcon: ({ focused, size }) => (
           <View style={[styles.iconFrame, { backgroundColor: focused ? colors.accentSoft : 'transparent' }]}>
@@ -64,7 +64,7 @@ export default function TabLayout() {
         tabBarButton: (props) => {
           const { children, style, href: _href, ref: _ref, ...buttonProps } = props;
           const onPress = buttonProps.onPress;
-          return <GuideTarget id="settings-tab" style={styles.buttonTarget}><Pressable {...buttonProps} onPress={(event) => { if (guide.visible) guide.finishGuide(); onPress?.(event); }} style={style}>{children}</Pressable></GuideTarget>;
+          return <GuideTarget id="settings-tab" style={styles.buttonTarget}><Pressable motion="compact" {...buttonProps} onPress={(event) => { if (guide.visible) guide.finishGuide(); onPress?.(event); }} style={style}>{children}</Pressable></GuideTarget>;
         },
         tabBarIcon: ({ focused, size }) => <View style={[styles.iconFrame, { backgroundColor: focused ? colors.accentSoft : 'transparent' }]}><Feather name="settings" color={focused ? colors.accent : colors.muted} size={size} /></View>,
       }} />

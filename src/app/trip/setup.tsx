@@ -179,7 +179,7 @@ export default function TripSetupScreen() {
 function SelectRow({ title, value, onPress }: { title: string; value: string; onPress: () => void }) {
   const colors = useNavoColors();
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.selectRow}>
+    <Pressable motion="card" accessibilityRole="button" onPress={onPress} style={styles.selectRow}>
       <View style={styles.selectCopy}>
         <Text style={[styles.selectLabel, { color: colors.muted }]}>{title}</Text>
         <Text style={[styles.selectValue, { color: colors.ink }]}>{value}</Text>
@@ -192,7 +192,7 @@ function SelectRow({ title, value, onPress }: { title: string; value: string; on
 function StopOption({ stop, index, selected, disabled, mode, onPress }: { stop: Stop; index: number; selected: boolean; disabled: boolean; mode: Exclude<PickerMode, null>; onPress: () => void }) {
   const colors = useNavoColors();
   return (
-    <Pressable
+    <Pressable motion="card"
       accessibilityRole="button"
       accessibilityLabel={mode === 'boarding' ? 'Board at ' + stop.name : 'Set destination to ' + stop.name}
       accessibilityState={{ selected, disabled }}
