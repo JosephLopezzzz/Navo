@@ -46,8 +46,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
 
   const mutateState = useCallback(async (mutate: (current: StoredAppState) => StoredAppState) => {
     try {
-      await updateAppState(mutate);
-      const latest = await readAppState();
+      const latest = await updateAppState(mutate);
       setState(latest);
       hasLoadedState.current = true;
       setStorageProblem(null);

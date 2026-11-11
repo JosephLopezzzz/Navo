@@ -1,13 +1,12 @@
 import { router, useFocusEffect } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Linking, Modal, StyleSheet, Switch, Text, View, type ScrollViewInstance } from 'react-native';
+import { ActivityIndicator, AppState, BackHandler, Linking, Modal, ScrollView, StyleSheet, Switch, Text, View, type ScrollViewInstance } from 'react-native';
 import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Screen, ScreenTitle, Subtle } from '../../components/ui';
 import { armDestinationAlarm, disarmDestinationAlarm } from '../../domain/destination-alarm';
-import { ALARM_TONES, getAlarmTone, type AlarmToneId } from '../../domain/alarm-tones';
-import { AlarmSoundPicker } from '../../components/AlarmSoundPicker';
+import { removeSavedDestinations } from '../../domain/saved-alarm-actions';
 import { dismissAlarmNotification } from '../../services/alarm-notification-delivery';
 import type { DestinationAlarm, SavedDestination } from '../../domain/models';
 import { beginBackgroundLocation, stopBackgroundLocationIfIdle } from '../../services/background-location';
@@ -23,27 +22,6 @@ function destinationType(destination: SavedDestination): string {
   return 'Place';
 }
 
-function alarmStatus(
-  alarm: DestinationAlarm | undefined,
-  locationAt: number | null,
-  locationProblem: string | null,
-): { label: string; detail: string; tone: 'warning' | 'success' } | null {
-  if (!alarm?.enabled) return null;
-  if (alarm.watchState === 'alerted') return { label: 'Alert sent', detail: 'The alarm stopped after this alert.', tone: 'success' };
-  if (locationProblem) return { label: 'Check location', detail: locationProblem, tone: 'warning' };
-  if (alarm.watchState === 'awaiting-exit') return { label: 'Waiting to arm', detail: 'Move outside the alert area to start monitoring.', tone: 'warning' };
-  if (!locationAt || Date.now() - locationAt > 90_000) return { label: 'Waiting for GPS', detail: 'The alarm is on and needs a fresh location fix.', tone: 'warning' };
-  const detail = alarm.lastDistanceM === null
-    ? `Alert within ${alarm.radiusM} m`
-    : `${Math.round(alarm.lastDistanceM)} m away · alerts within ${alarm.radiusM} m`;
-  return { label: 'Monitoring', detail, tone: 'success' };
-}
-
-type DestinationModalState = {
-  mode: 'options' | 'remove' | 'sound';
-  destination: SavedDestination;
-} | null;
-
 export default function RideHomeScreen() {
   const colors = useNavoColors();
   const app = useAppState();
@@ -51,12 +29,30 @@ export default function RideHomeScreen() {
   const [busyAlarmId, setBusyAlarmId] = useState<string | null>(null);
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [permissionSummary, setPermissionSummary] = useState<AlarmPermissionSummary | null>(null);
-  const [destinationModal, setDestinationModal] = useState<DestinationModalState>(null);
-  const [pendingToneId, setPendingToneId] = useState<AlarmToneId>(ALARM_TONES[0].id);
-  const [soundBusy, setSoundBusy] = useState(false);
-  const [savingTone, setSavingTone] = useState(false);
-  const [toneSaveProblem, setToneSaveProblem] = useState<string | null>(null);
+  const [selectedDestinationIds, setSelectedDestinationIds] = useState<string[]>([]);
+  const [removalIds, setRemovalIds] = useState<string[] | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removalProblem, setRemovalProblem] = useState<string | null>(null);
   const screenScrollRef = useRef<ScrollViewInstance>(null);
+  const selectedIds = new Set(selectedDestinationIds.filter((id) => app.destinations.some((item) => item.id === id)));
+  const isSelecting = selectedIds.size > 0;
+  const pendingRemovals = app.destinations.filter((item) => removalIds?.includes(item.id));
+
+  const clearSelection = useCallback(() => {
+    setSelectedDestinationIds([]);
+    setRemovalIds(null);
+    setRemovalProblem(null);
+  }, []);
+
+  useFocusEffect(useCallback(() => clearSelection, [clearSelection]));
+  useFocusEffect(useCallback(() => {
+    if (!isSelecting) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!removing) clearSelection();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [clearSelection, isSelecting, removing]));
 
   const refreshPermissions = useCallback(() => {
     void readAlarmPermissions().then(setPermissionSummary).catch(() => setPermissionSummary(null));
@@ -81,7 +77,7 @@ export default function RideHomeScreen() {
   };
 
   const toggleAlarm = async (alarm: DestinationAlarm, enabled: boolean) => {
-    if (busyAlarmId) return;
+    if (busyAlarmId || removing || isSelecting) return;
     setBusyAlarmId(alarm.id);
     setActionProblem(null);
     try {
@@ -138,81 +134,59 @@ export default function RideHomeScreen() {
     }
   };
 
-  const removeDestination = async (destination: SavedDestination) => {
-    if (busyAlarmId) return;
-    const alarm = app.destinationAlarms.find((item) => item.destinationId === destination.id);
-    setBusyAlarmId(alarm?.id ?? destination.id);
+  const removeSelectedDestinations = async () => {
+    if (busyAlarmId || removing || !removalIds?.length) return;
+    const idsToRemove = new Set(removalIds);
+    let notificationIds: string[] = [];
+    setRemoving(true);
     setActionProblem(null);
+    setRemovalProblem(null);
     try {
-      await app.mutateState((current) => ({
-        ...current,
-        destinations: current.destinations.filter((item) => item.id !== destination.id),
-        destinationAlarms: current.destinationAlarms.filter((item) => item.destinationId !== destination.id),
-        firstRun: current.firstRun.permissionNoticeAlarmId === alarm?.id
-          ? { ...current.firstRun, permissionNoticeAlarmId: null }
-          : current.firstRun,
-      }));
-      if (alarm?.notificationIdentifier) await dismissAlarmNotification(alarm.notificationIdentifier).catch(() => undefined);
-      await stopBackgroundLocationIfIdle();
+      await app.mutateState((current) => {
+        notificationIds = current.destinationAlarms
+          .filter((alarm) => idsToRemove.has(alarm.destinationId))
+          .flatMap((alarm) => alarm.notificationIdentifier ? [alarm.notificationIdentifier] : []);
+        return removeSavedDestinations(current, removalIds);
+      });
     } catch {
-      setActionProblem('Navo could not remove this destination from your device. Try again.');
-    } finally {
-      setBusyAlarmId(null);
-    }
-  };
-
-  const showOptions = (destination: SavedDestination) => {
-    setDestinationModal({ mode: 'options', destination });
-  };
-
-  const closeDestinationModal = () => {
-    if (soundBusy) return;
-    setDestinationModal(null);
-  };
-
-  const showTonePicker = (destination: SavedDestination) => {
-    const alarm = app.destinationAlarms.find((item) => item.destinationId === destination.id);
-    setPendingToneId(getAlarmTone(alarm?.ringtoneId, app.importedAlarmSounds).id);
-    setToneSaveProblem(null);
-    setDestinationModal({ mode: 'sound', destination });
-  };
-
-  const saveTone = async () => {
-    if (destinationModal?.mode !== 'sound' || soundBusy) return;
-    const alarm = app.destinationAlarms.find((item) => item.destinationId === destinationModal.destination.id);
-    if (!alarm) {
-      setToneSaveProblem('This saved alarm is no longer available.');
+      setRemovalProblem('Navo could not delete these alarms from your device. Try again.');
+      setRemoving(false);
       return;
     }
-    setSavingTone(true);
-    setToneSaveProblem(null);
+    clearSelection();
+    const dismissals = await Promise.allSettled([...new Set(notificationIds)].map(dismissAlarmNotification));
     try {
-      await app.mutateState((current) => ({
-        ...current,
-        destinationAlarms: current.destinationAlarms.map((item) => item.id === alarm.id
-          ? { ...item, ringtoneId: pendingToneId }
-          : item),
-      }));
-      closeDestinationModal();
+      await stopBackgroundLocationIfIdle();
+      if (dismissals.some((result) => result.status === 'rejected')) {
+        setActionProblem('Alarms deleted. An existing notification could not be cleared; dismiss it from your phone.');
+      }
     } catch {
-      setToneSaveProblem('Navo could not save that alarm sound. Try again.');
+      setActionProblem('Alarms deleted. Navo could not stop the idle location check. Restart the app to try again.');
     } finally {
-      setSavingTone(false);
+      setRemoving(false);
     }
   };
 
-  const editDestination = (destination: SavedDestination) => {
-    closeDestinationModal();
+  const selectDestination = (destinationId: string) => {
+    if (busyAlarmId || removing) return;
+    if (guide.visible) guide.finishGuide();
+    setSelectedDestinationIds((current) => [...new Set([...current, destinationId])]);
+  };
+
+  const pressDestination = (destination: SavedDestination) => {
+    if (busyAlarmId || removing) return;
+    if (guide.visible) guide.finishGuide();
+    if (isSelecting) {
+      setSelectedDestinationIds((current) => selectedIds.has(destination.id)
+        ? current.filter((id) => id !== destination.id)
+        : [...current, destination.id]);
+      return;
+    }
     router.push({ pathname: '/destination/pick', params: { destinationId: destination.id } });
   };
 
-  const requestDestinationRemoval = (destination: SavedDestination) => {
-    setDestinationModal({ mode: 'remove', destination });
-  };
-
-  const confirmDestinationRemoval = (destination: SavedDestination) => {
-    closeDestinationModal();
-    void removeDestination(destination);
+  const closeRemovalDialog = () => {
+    if (!removing) setRemovalIds(null);
   };
 
   const dismissNotice = () => {
@@ -234,11 +208,24 @@ export default function RideHomeScreen() {
   const allAlarmsLabel = enabledCount === 0 ? 'All off' : `${enabledCount} on`;
 
   return (
-    <Screen tabBar scrollRef={screenScrollRef}>
+    <Screen tabBar scrollRef={screenScrollRef} footer={isSelecting ? (
+      <View style={styles.selectionFooter}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${selectedIds.size} selected ${selectedIds.size === 1 ? 'alarm' : 'alarms'}`}
+          disabled={removing || Boolean(busyAlarmId)}
+          onPress={() => { setRemovalProblem(null); setRemovalIds([...selectedIds]); }}
+          style={({ pressed }) => [styles.deleteButton, { backgroundColor: pressed ? colors.dangerHover : colors.danger, opacity: removing ? 0.6 : 1 }]}
+        >
+          <Feather name="trash-2" size={18} color={colors.onAccent} />
+          <Text style={[styles.deleteButtonText, { color: colors.onAccent }]}>Delete {selectedIds.size} {selectedIds.size === 1 ? 'alarm' : 'alarms'}</Text>
+        </Pressable>
+      </View>
+    ) : undefined}>
       {app.firstRun.preferences.displayName || app.destinations.length > 0 ? (
         <View style={styles.greetingRow}>
           {app.firstRun.preferences.displayName ? <Text style={[styles.greeting, { color: colors.muted }]}>Hi, {app.firstRun.preferences.displayName.trim().split(/\s+/)[0]}</Text> : <View style={styles.greetingSpacer} />}
-          {app.destinations.length > 0 ? (
+          {app.destinations.length > 0 && !isSelecting ? (
             <GuideTarget id="add-alarm" style={styles.addAlarmTopTarget}>
               <Pressable
                 accessibilityRole="button"
@@ -256,7 +243,7 @@ export default function RideHomeScreen() {
 
       <View style={styles.titleBlock}>
         <ScreenTitle>Saved alarms</ScreenTitle>
-        <Text style={[styles.count, { color: colors.muted }]}>{app.destinations.length} saved · {allAlarmsLabel}</Text>
+        <Text accessibilityLiveRegion="polite" style={[styles.count, { color: colors.muted }]}>{isSelecting ? `${selectedIds.size} selected` : `${app.destinations.length} saved · ${allAlarmsLabel}`}</Text>
       </View>
 
       {app.activeTrip && app.activeRoute ? (
@@ -293,54 +280,62 @@ export default function RideHomeScreen() {
         </GuideTarget>
       ) : (
         <View style={styles.alarmList}>
+          {isSelecting ? (
+            <View style={styles.selectionToolbar}>
+              <Pressable accessibilityRole="button" disabled={removing} onPress={clearSelection} style={styles.selectionAction}>
+                <Feather name="x" size={18} color={colors.ink} />
+                <Text style={[styles.selectionActionText, { color: colors.ink }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={removing}
+                onPress={() => setSelectedDestinationIds(selectedIds.size === app.destinations.length ? [] : app.destinations.map((item) => item.id))}
+                style={styles.selectionAction}
+              >
+                <Text style={[styles.selectionActionText, { color: colors.accent }]}>{selectedIds.size === app.destinations.length ? 'Deselect all' : 'Select all'}</Text>
+              </Pressable>
+            </View>
+          ) : <Text style={[styles.selectionHint, { color: colors.muted }]}>Tap to edit · Hold to select</Text>}
           {app.destinations.map((destination, index) => {
             const alarm = app.destinationAlarms.find((item) => item.destinationId === destination.id);
-            const status = alarmStatus(alarm, app.lastLocationAt, app.locationProblem);
             const isBusy = busyAlarmId === alarm?.id || busyAlarmId === destination.id;
+            const isSelected = selectedIds.has(destination.id);
             const card = (
-              <View style={[styles.destinationCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
-                <View style={styles.cardTop}>
-                  <Pressable motion="card" accessibilityRole="button" accessibilityLabel={`Edit alarm for ${destination.name}`} onPress={() => { if (guide.visible) guide.finishGuide(); router.push({ pathname: '/destination/pick', params: { destinationId: destination.id } }); }} style={({ pressed }) => [styles.destinationMain, { backgroundColor: pressed ? colors.accentSoft : 'transparent' }]}>
-                    <View style={[styles.destinationIcon, { backgroundColor: colors.accentSoft }]}>
-                      <Feather name={destination.kind === 'rail-station' ? 'navigation' : destination.kind === 'bus-dropoff' ? 'truck' : 'map-pin'} size={17} color={colors.accent} />
-                    </View>
-                    <View style={styles.destinationCopy}>
-                      <Text style={[styles.destinationKind, { color: colors.muted }]}>{destinationType(destination).toUpperCase()}</Text>
-                      <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.destinationName, { color: colors.ink }]}>{destination.name}</Text>
-                      <Text numberOfLines={1} style={[styles.destinationSubtitle, { color: colors.muted }]}>{destination.subtitle || (destination.source === 'map-pin' ? 'Pinned location' : 'Place selected from search')}</Text>
-                    </View>
-                  </Pressable>
-                  <Pressable motion="compact" accessibilityRole="button" accessibilityLabel={`More options for ${destination.name}`} onPress={() => { if (guide.visible) guide.finishGuide(); showOptions(destination); }} hitSlop={6} style={styles.moreButton}>
-                    <Feather name="more-vertical" size={18} color={colors.muted} />
-                  </Pressable>
-                </View>
-                <View style={[styles.cardBottom, { borderTopColor: colors.line }]}>
-                  <View style={styles.alarmStateCopy}>
-                    <Text style={[styles.alarmState, { color: alarm?.enabled ? colors.success : colors.muted }]}>{alarm?.enabled ? 'On · alerts near this stop' : 'Off'}</Text>
-                    {status ? <Text numberOfLines={2} style={[styles.statusDetail, { color: colors.muted }]}>{status.label === 'Monitoring' ? status.detail : `${status.label} · ${status.detail}`}</Text> : null}
-                    <Pressable motion="compact"
-                      accessibilityRole="button"
-                      accessibilityLabel={'Alarm sound for ' + destination.name + ': ' + getAlarmTone(alarm?.ringtoneId, app.importedAlarmSounds).label}
-                      accessibilityHint="Choose and preview the sound for this destination alarm."
-                      onPress={() => showTonePicker(destination)}
-                      style={styles.soundShortcut}
-                    >
-                      <Feather name="volume-2" size={13} color={colors.accent} />
-                      <Text numberOfLines={1} style={[styles.soundShortcutText, { color: colors.accent }]}>Sound · {getAlarmTone(alarm?.ringtoneId, app.importedAlarmSounds).label}</Text>
-                      <Feather name="chevron-right" size={13} color={colors.accent} />
-                    </Pressable>
+              <View style={[styles.destinationCard, { backgroundColor: isSelected ? colors.accentSoft : colors.surface, borderColor: isSelected ? colors.accent : colors.line }]}>
+                <Pressable
+                  motion="card"
+                  accessibilityRole={isSelecting ? 'checkbox' : 'button'}
+                  accessibilityLabel={isSelecting ? `${destination.name}, ${destinationType(destination)}` : `Edit alarm for ${destination.name}, ${destinationType(destination)}`}
+                  accessibilityHint={isSelecting ? 'Tap to select or deselect this alarm.' : 'Opens alarm details. Hold to select alarms for deletion.'}
+                  accessibilityState={isSelecting ? { checked: isSelected, disabled: removing } : { disabled: Boolean(busyAlarmId) || removing }}
+                  accessibilityActions={isSelecting ? [] : [{ name: 'select', label: 'Select for deletion' }]}
+                  onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'select') selectDestination(destination.id); }}
+                  disabled={Boolean(busyAlarmId) || removing}
+                  onPress={() => pressDestination(destination)}
+                  onLongPress={() => selectDestination(destination.id)}
+                  style={({ pressed }) => [styles.destinationMain, { backgroundColor: pressed ? colors.accentSoft : 'transparent' }]}
+                >
+                  <View style={[styles.destinationIcon, { backgroundColor: isSelecting ? 'transparent' : colors.accentSoft }]}>
+                    <Feather name={isSelecting ? isSelected ? 'check-square' : 'square' : destination.kind === 'rail-station' ? 'navigation' : destination.kind === 'bus-dropoff' ? 'truck' : 'map-pin'} size={isSelecting ? 23 : 18} color={isSelecting && !isSelected ? colors.muted : colors.accent} />
                   </View>
+                  <View style={styles.destinationCopy}>
+                    <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.destinationName, { color: colors.ink }]}>{destination.name}</Text>
+                    <Text style={[styles.destinationKind, { color: colors.muted }]}>{destinationType(destination)}</Text>
+                  </View>
+                </Pressable>
+                {!isSelecting ? <View style={styles.switchTarget}>
                   {isBusy ? <ActivityIndicator accessibilityLabel="Updating alarm" color={colors.accent} style={styles.switchBusy} /> : (
                     <Switch
                       accessibilityLabel={`Alarm for ${destination.name}`}
                       accessibilityHint="Starts or stops destination location monitoring. New alarms stay off until you turn them on."
+                      disabled={!alarm || Boolean(busyAlarmId) || removing}
                       value={Boolean(alarm?.enabled)}
                       onValueChange={(enabled) => { if (guide.visible) guide.finishGuide(); if (alarm) void toggleAlarm(alarm, enabled); }}
                       trackColor={{ false: colors.switchOffTrack, true: colors.accent }}
                       thumbColor={colors.switchThumb}
                     />
                   )}
-                </View>
+                </View> : null}
               </View>
             );
             return index === 0
@@ -391,90 +386,42 @@ export default function RideHomeScreen() {
 
       <Modal
         animationType="fade"
-        onRequestClose={closeDestinationModal}
+        onRequestClose={closeRemovalDialog}
         transparent
-        visible={destinationModal !== null}
+        visible={removalIds !== null}
       >
         <View style={styles.modalRoot}>
-          <Pressable motion="none" accessibilityRole="button" accessibilityLabel="Dismiss dialog" onPress={closeDestinationModal} style={StyleSheet.absoluteFill} />
-          {destinationModal ? (
+          <Pressable motion="none" accessibilityRole="button" accessibilityLabel="Dismiss delete confirmation" disabled={removing} onPress={closeRemovalDialog} style={StyleSheet.absoluteFill} />
+          {removalIds ? (
             <View accessibilityViewIsModal style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
               <View style={styles.modalHeading}>
-                <View style={[styles.modalIcon, { backgroundColor: destinationModal.mode === 'remove' ? colors.dangerSoft : colors.accentSoft }]}>
-                  <Feather
-                    name={destinationModal.mode === 'remove' ? 'trash-2' : destinationModal.mode === 'sound' ? 'volume-2' : destinationModal.destination.kind === 'rail-station' ? 'navigation' : destinationModal.destination.kind === 'bus-dropoff' ? 'truck' : 'map-pin'}
-                    size={19}
-                    color={destinationModal.mode === 'remove' ? colors.danger : colors.accent}
-                  />
-                </View>
                 <View style={styles.modalHeadingCopy}>
-                  <Text style={[styles.modalEyebrow, { color: destinationModal.mode === 'remove' ? colors.danger : colors.accent }]}>
-                    {destinationModal.mode === 'remove' ? 'REMOVE DESTINATION' : destinationModal.mode === 'sound' ? 'ALARM SOUND' : `${destinationType(destinationModal.destination).toUpperCase()} DESTINATION`}
+                  <Text accessibilityRole="header" style={[styles.modalTitle, { color: colors.ink }]}>
+                    Delete {pendingRemovals.length} {pendingRemovals.length === 1 ? 'alarm' : 'alarms'}?
                   </Text>
-                  <Text accessibilityRole="header" numberOfLines={2} style={[styles.modalTitle, { color: colors.ink }]}>
-                    {destinationModal.mode === 'remove' ? 'Remove this destination?' : destinationModal.mode === 'sound' ? 'Choose a sound' : destinationModal.destination.name}
-                  </Text>
-                  <Text numberOfLines={2} style={[styles.modalSubtitle, { color: colors.muted }]}>
-                    {destinationModal.mode === 'remove'
-                      ? `“${destinationModal.destination.name}” and its saved alarm will be removed from this device.`
-                      : destinationModal.mode === 'sound'
-                        ? 'For ' + destinationModal.destination.name + '. Preview a sound, then save your choice.'
-                        : destinationModal.destination.subtitle || 'Manage this saved destination and its alarm.'}
+                  <Text style={[styles.modalSubtitle, { color: colors.muted }]}>
+                    These saved destinations and their alarms will be removed from this device.
                   </Text>
                 </View>
-                <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Close dialog" disabled={soundBusy || savingTone} onPress={closeDestinationModal} style={styles.modalClose}>
+                <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Close delete confirmation" disabled={removing} onPress={closeRemovalDialog} style={styles.modalClose}>
                   <Feather name="x" size={19} color={colors.muted} />
                 </Pressable>
               </View>
-
-              <View style={[styles.modalDivider, { backgroundColor: colors.line }]} />
-
-              {destinationModal.mode === 'options' ? (
-                <View style={styles.modalActions}>
-                  <Pressable accessibilityRole="button" onPress={() => editDestination(destinationModal.destination)} style={({ pressed }) => [styles.modalPrimary, { backgroundColor: pressed ? colors.accentHover : colors.accent }]}>
-                    <Feather name="edit-2" size={17} color={colors.onAccent} />
-                    <Text style={[styles.modalPrimaryText, { color: colors.onAccent }]}>Edit alarm</Text>
-                    <Feather name="arrow-right" size={16} color={colors.onAccent} />
-                  </Pressable>
-                  <Pressable motion="card" accessibilityRole="button" onPress={() => showTonePicker(destinationModal.destination)} style={[styles.modalSoundAction, { borderColor: colors.line, backgroundColor: colors.raised }]}>
-                    <Feather name="volume-2" size={17} color={colors.accent} />
-                    <Text style={[styles.modalSoundActionText, { color: colors.ink }]}>Alarm sound · {getAlarmTone(app.destinationAlarms.find((item) => item.destinationId === destinationModal.destination.id)?.ringtoneId, app.importedAlarmSounds).label}</Text>
-                    <Feather name="chevron-right" size={16} color={colors.accent} />
-                  </Pressable>
-                  <Pressable accessibilityRole="button" onPress={() => requestDestinationRemoval(destinationModal.destination)} style={({ pressed }) => [styles.modalDestructive, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}>
-                    <Feather name="trash-2" size={17} color={colors.danger} />
-                    <Text style={[styles.modalDestructiveText, { color: colors.danger }]}>Remove destination</Text>
-                  </Pressable>
-                  <Pressable accessibilityRole="button" onPress={closeDestinationModal} style={styles.modalCancel}>
-                    <Text style={[styles.modalCancelText, { color: colors.muted }]}>Cancel</Text>
-                  </Pressable>
-                </View>
-              ) : destinationModal.mode === 'sound' ? (
-                <>
-                  <AlarmSoundPicker value={pendingToneId} onChange={setPendingToneId} disabled={savingTone} onBusyChange={setSoundBusy} scroll />
-                  <Text style={[styles.toneNote, { color: colors.muted }]}>Your phone’s notification and Focus settings can still mute an alarm.</Text>
-                  {toneSaveProblem ? <Text accessibilityRole="alert" style={[styles.toneProblem, { color: colors.danger }]}>{toneSaveProblem}</Text> : null}
-                  <View style={styles.modalActions}>
-                    <Pressable accessibilityRole="button" disabled={savingTone || soundBusy} onPress={() => void saveTone()} style={({ pressed }) => [styles.modalPrimary, { backgroundColor: pressed ? colors.accentHover : colors.accent, opacity: savingTone || soundBusy ? 0.6 : 1 }]}>
-                      <Feather name="check" size={17} color={colors.onAccent} />
-                      <Text style={[styles.modalPrimaryText, { color: colors.onAccent }]}>{savingTone ? 'Saving sound…' : 'Save sound'}</Text>
-                    </Pressable>
-                    <Pressable accessibilityRole="button" disabled={savingTone || soundBusy} onPress={closeDestinationModal} style={styles.modalCancel}>
-                      <Text style={[styles.modalCancelText, { color: colors.muted }]}>Cancel</Text>
-                    </Pressable>
-                  </View>
-                </>
-              ) : (
-                <View style={styles.modalActions}>
-                  <Pressable accessibilityRole="button" onPress={() => confirmDestinationRemoval(destinationModal.destination)} style={({ pressed }) => [styles.modalPrimary, { backgroundColor: pressed ? colors.dangerHover : colors.danger }]}>
-                    <Feather name="trash-2" size={17} color={colors.onAccent} />
-                    <Text style={[styles.modalPrimaryText, { color: colors.onAccent }]}>Remove destination</Text>
-                  </Pressable>
-                  <Pressable accessibilityRole="button" onPress={closeDestinationModal} style={[styles.modalKeep, { borderColor: colors.line }]}>
-                    <Text style={[styles.modalKeepText, { color: colors.ink }]}>Keep destination</Text>
-                  </Pressable>
-                </View>
-              )}
+              <ScrollView style={styles.removalList} contentContainerStyle={styles.removalListContent}>
+                {pendingRemovals.map((destination) => (
+                  <Text key={destination.id} style={[styles.removalName, { color: colors.ink }]}>{destination.name} · {destinationType(destination)}</Text>
+                ))}
+              </ScrollView>
+              {removalProblem ? <Text accessibilityRole="alert" style={[styles.actionProblem, { color: colors.danger }]}>{removalProblem}</Text> : null}
+              <View style={styles.modalActions}>
+                <Pressable accessibilityRole="button" disabled={removing || pendingRemovals.length === 0} onPress={() => void removeSelectedDestinations()} style={({ pressed }) => [styles.deleteButton, { backgroundColor: pressed ? colors.dangerHover : colors.danger, opacity: removing || pendingRemovals.length === 0 ? 0.6 : 1 }]}>
+                  {removing ? <ActivityIndicator color={colors.onAccent} /> : <Feather name="trash-2" size={17} color={colors.onAccent} />}
+                  <Text style={[styles.deleteButtonText, { color: colors.onAccent }]}>{removing ? 'Deleting…' : `Delete ${pendingRemovals.length === 1 ? 'alarm' : 'alarms'}`}</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" disabled={removing} onPress={closeRemovalDialog} style={[styles.modalKeep, { borderColor: colors.line }]}>
+                  <Text style={[styles.modalKeepText, { color: colors.ink }]}>Cancel</Text>
+                </Pressable>
+              </View>
             </View>
           ) : null}
         </View>
@@ -523,22 +470,21 @@ const styles = StyleSheet.create({
   primaryAction: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch', gap: 8, borderRadius: 13, overflow: 'hidden' },
   primaryActionText: { fontSize: 14, fontWeight: '700' },
   alarmList: { gap: 9 },
+  selectionHint: { fontSize: 12, lineHeight: 18, marginBottom: 2 },
+  selectionToolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  selectionAction: { minHeight: 48, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12 },
+  selectionActionText: { fontSize: 14, fontWeight: '600' },
+  selectionFooter: { paddingBottom: 70 },
+  deleteButton: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14 },
+  deleteButtonText: { fontSize: 16, lineHeight: 22, fontWeight: '700', flexShrink: 1 },
   cardTarget: { width: '100%' },
-  destinationCard: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 11, paddingVertical: 8, overflow: 'hidden' },
-  cardTop: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  destinationMain: { flex: 1, minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  destinationCard: { borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
+  destinationMain: { flex: 1, minHeight: 84, paddingHorizontal: 12, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   destinationIcon: { width: 37, height: 37, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
-  destinationCopy: { flex: 1, gap: 2, paddingVertical: 3 },
-  destinationKind: { fontSize: 9, fontWeight: '700', letterSpacing: 0.35 },
-  destinationName: { fontSize: 14, lineHeight: 18, fontWeight: '700', letterSpacing: -0.15 },
-  destinationSubtitle: { fontSize: 11 },
-  moreButton: { minWidth: 40, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  cardBottom: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 5 },
-  alarmStateCopy: { flex: 1, gap: 2 },
-  alarmState: { fontSize: 11, lineHeight: 16, fontWeight: '700' },
-  statusDetail: { fontSize: 10, lineHeight: 14 },
-  soundShortcut: { minHeight: 30, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, paddingRight: 8 },
-  soundShortcutText: { maxWidth: 210, fontSize: 10, lineHeight: 15, fontWeight: '700' },
+  destinationCopy: { flex: 1, gap: 4 },
+  destinationKind: { fontSize: 12, lineHeight: 18, fontWeight: '500' },
+  destinationName: { fontSize: 16, lineHeight: 22, fontWeight: '700', letterSpacing: -0.15 },
+  switchTarget: { minWidth: 60, minHeight: 52, paddingRight: 12, alignItems: 'center', justifyContent: 'center' },
   switchBusy: { width: 48, height: 44 },
   addButton: { minHeight: 44, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14, borderRadius: 13, overflow: 'hidden' },
   addButtonText: { fontSize: 14, fontWeight: '700' },
@@ -559,24 +505,14 @@ const styles = StyleSheet.create({
   modalRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, backgroundColor: 'rgba(5, 12, 23, 0.68)' },
   modalCard: { width: '100%', maxWidth: 400, maxHeight: '94%', gap: 15, padding: 18, borderWidth: 1, borderRadius: 22, elevation: 20 },
   modalHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  modalIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   modalHeadingCopy: { flex: 1, gap: 4, paddingTop: 1 },
-  modalEyebrow: { fontSize: 10, lineHeight: 14, fontWeight: '800', letterSpacing: 0.55 },
   modalTitle: { fontSize: 18, lineHeight: 23, fontWeight: '700', letterSpacing: -0.2 },
-  modalSubtitle: { fontSize: 12, lineHeight: 17 },
-  modalClose: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  modalDivider: { height: StyleSheet.hairlineWidth },
+  modalSubtitle: { fontSize: 14, lineHeight: 20 },
+  modalClose: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  removalList: { maxHeight: 180, flexShrink: 1 },
+  removalListContent: { gap: 10 },
+  removalName: { fontSize: 14, lineHeight: 20 },
   modalActions: { gap: 8 },
-  modalSoundAction: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 13, borderWidth: 1, borderRadius: 13 },
-  modalSoundActionText: { flex: 1, fontSize: 12, lineHeight: 17, fontWeight: '600' },
-  toneNote: { fontSize: 10, lineHeight: 15 },
-  toneProblem: { fontSize: 11, lineHeight: 16 },
-  modalPrimary: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 14, borderRadius: 14 },
-  modalPrimaryText: { flex: 1, fontSize: 14, fontWeight: '700' },
-  modalDestructive: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, borderWidth: 1, borderRadius: 14 },
-  modalDestructiveText: { fontSize: 14, fontWeight: '700' },
-  modalCancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  modalCancelText: { fontSize: 13, fontWeight: '600' },
   modalKeep: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 14 },
   modalKeepText: { fontSize: 14, fontWeight: '700' },
 });
