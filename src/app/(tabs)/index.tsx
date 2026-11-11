@@ -32,6 +32,7 @@ export default function RideHomeScreen() {
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [permissionSummary, setPermissionSummary] = useState<AlarmPermissionSummary | null>(null);
   const [selectedDestinationIds, setSelectedDestinationIds] = useState<string[]>([]);
+  const [pressedDestinationId, setPressedDestinationId] = useState<string | null>(null);
   const [removalIds, setRemovalIds] = useState<string[] | null>(null);
   const [removing, setRemoving] = useState(false);
   const [removalProblem, setRemovalProblem] = useState<string | null>(null);
@@ -304,48 +305,55 @@ export default function RideHomeScreen() {
             const alarm = app.destinationAlarms.find((item) => item.destinationId === destination.id);
             const isBusy = busyAlarmId === alarm?.id || busyAlarmId === destination.id;
             const isSelected = selectedIds.has(destination.id);
+            const isCardPressed = pressedDestinationId === destination.id;
+            const clearCardPress = () => setPressedDestinationId((current) => current === destination.id ? null : current);
             const card = (
-              <View style={[styles.destinationCard, { backgroundColor: isSelected ? colors.accentSoft : colors.surface, borderColor: isSelected ? colors.accent : colors.line }]}>
-                <Pressable
-                  motion="card"
-                  accessibilityRole={isSelecting ? 'checkbox' : 'button'}
-                  accessibilityLabel={isSelecting ? `${destination.name}, ${destinationType(destination)}` : `Edit alarm for ${destination.name}, ${destinationType(destination)}`}
-                  accessibilityHint={isSelecting ? 'Tap to select or deselect this alarm.' : 'Opens alarm details. Hold to select alarms for deletion.'}
-                  accessibilityState={isSelecting ? { checked: isSelected, disabled: removing } : { disabled: Boolean(busyAlarmId) || removing }}
-                  accessibilityActions={isSelecting ? [] : [{ name: 'select', label: 'Select for deletion' }]}
-                  onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'select') selectDestination(destination.id); }}
-                  disabled={Boolean(busyAlarmId) || removing}
-                  onPress={() => pressDestination(destination)}
-                  onLongPress={() => selectDestination(destination.id)}
-                  style={({ pressed }) => [styles.destinationMain, { backgroundColor: pressed ? colors.accentSoft : 'transparent' }]}
-                >
-                  <View style={[styles.destinationIcon, !isSelecting && { borderRightWidth: 1, borderRightColor: colors.line, marginVertical: 4 }]}>
-                    {isSelecting ? (
-                      <Feather name={isSelected ? 'check-square' : 'square'} size={23} color={isSelected ? colors.accent : colors.muted} />
-                    ) : destination.kind === 'bus-dropoff' ? (
-                      <MaterialCommunityIcons name="bus" size={25} color={colors.accent} />
-                    ) : (
-                      <Feather name={destination.kind === 'rail-station' ? 'navigation' : 'map-pin'} size={20} color={colors.accent} />
+              <View style={[styles.destinationCardShadow, { backgroundColor: isSelected ? colors.accentSoft : colors.surface }, isCardPressed && { elevation: 4, shadowColor: colors.ink, shadowOpacity: 0.14, shadowRadius: 7, shadowOffset: { width: 0, height: 3 } }]}>
+                <View style={[styles.destinationCard, { backgroundColor: isSelected ? colors.accentSoft : colors.surface, borderColor: isSelected ? colors.accent : colors.line }]}>
+                  <Pressable
+                    motion="none"
+                    accessibilityRole={isSelecting ? 'checkbox' : 'button'}
+                    accessibilityLabel={isSelecting ? `${destination.name}, ${destinationType(destination)}` : `Edit alarm for ${destination.name}, ${destinationType(destination)}`}
+                    accessibilityHint={isSelecting ? 'Tap to select or deselect this alarm.' : 'Opens alarm details. Hold to select alarms for deletion.'}
+                    accessibilityState={isSelecting ? { checked: isSelected, disabled: removing } : { disabled: Boolean(busyAlarmId) || removing }}
+                    accessibilityActions={isSelecting ? [] : [{ name: 'select', label: 'Select for deletion' }]}
+                    onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'select') selectDestination(destination.id); }}
+                    disabled={Boolean(busyAlarmId) || removing}
+                    onPress={() => pressDestination(destination)}
+                    onPressIn={() => setPressedDestinationId(destination.id)}
+                    onPressOut={clearCardPress}
+                    onTouchCancel={clearCardPress}
+                    onLongPress={() => selectDestination(destination.id)}
+                    style={styles.destinationMain}
+                  >
+                    <View style={[styles.destinationIcon, !isSelecting && { borderRightWidth: 1, borderRightColor: colors.line, marginVertical: 4 }]}>
+                      {isSelecting ? (
+                        <Feather name={isSelected ? 'check-square' : 'square'} size={23} color={isSelected ? colors.accent : colors.muted} />
+                      ) : destination.kind === 'bus-dropoff' ? (
+                        <MaterialCommunityIcons name="bus" size={25} color={colors.accent} />
+                      ) : (
+                        <Feather name={destination.kind === 'rail-station' ? 'navigation' : 'map-pin'} size={20} color={colors.accent} />
+                      )}
+                    </View>
+                    <View style={styles.destinationCopy}>
+                      <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.destinationName, { color: colors.ink }]}>{destination.name}</Text>
+                      <Text style={[styles.destinationKind, { color: colors.muted }]}>{destinationType(destination)}</Text>
+                    </View>
+                  </Pressable>
+                  {!isSelecting ? <View style={styles.switchTarget}>
+                    {isBusy ? <ActivityIndicator accessibilityLabel="Updating alarm" color={colors.accent} style={styles.switchBusy} /> : (
+                      <Switch
+                        accessibilityLabel={`Alarm for ${destination.name}`}
+                        accessibilityHint="Starts or stops destination location monitoring. New alarms stay off until you turn them on."
+                        disabled={!alarm || Boolean(busyAlarmId) || removing}
+                        value={Boolean(alarm?.enabled)}
+                        onValueChange={(enabled) => { if (guide.visible) guide.finishGuide(); if (alarm) void toggleAlarm(alarm, enabled); }}
+                        trackColor={{ false: colors.switchOffTrack, true: colors.accent }}
+                        thumbColor={colors.switchThumb}
+                      />
                     )}
-                  </View>
-                  <View style={styles.destinationCopy}>
-                    <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.destinationName, { color: colors.ink }]}>{destination.name}</Text>
-                    <Text style={[styles.destinationKind, { color: colors.muted }]}>{destinationType(destination)}</Text>
-                  </View>
-                </Pressable>
-                {!isSelecting ? <View style={styles.switchTarget}>
-                  {isBusy ? <ActivityIndicator accessibilityLabel="Updating alarm" color={colors.accent} style={styles.switchBusy} /> : (
-                    <Switch
-                      accessibilityLabel={`Alarm for ${destination.name}`}
-                      accessibilityHint="Starts or stops destination location monitoring. New alarms stay off until you turn them on."
-                      disabled={!alarm || Boolean(busyAlarmId) || removing}
-                      value={Boolean(alarm?.enabled)}
-                      onValueChange={(enabled) => { if (guide.visible) guide.finishGuide(); if (alarm) void toggleAlarm(alarm, enabled); }}
-                      trackColor={{ false: colors.switchOffTrack, true: colors.accent }}
-                      thumbColor={colors.switchThumb}
-                    />
-                  )}
-                </View> : null}
+                  </View> : null}
+                </View>
               </View>
             );
             return index === 0
@@ -488,6 +496,7 @@ const styles = StyleSheet.create({
   deleteButton: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14 },
   deleteButtonText: { fontSize: 16, lineHeight: 22, fontWeight: '700', flexShrink: 1 },
   cardTarget: { width: '100%' },
+  destinationCardShadow: { width: '100%', borderRadius: 14 },
   destinationCard: { borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden' },
   destinationMain: { flex: 1, minHeight: 84, paddingLeft: 12, paddingRight: 8, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' },
   destinationIcon: { width: 44, alignItems: 'center', justifyContent: 'center' },
