@@ -1,5 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, BackHandler, Linking, Modal, ScrollView, StyleSheet, Switch, Text, View, type ScrollViewInstance } from 'react-native';
 import { NavoPressable as Pressable } from '../../components/NavoPressable';
@@ -318,8 +319,14 @@ export default function RideHomeScreen() {
                   onLongPress={() => selectDestination(destination.id)}
                   style={({ pressed }) => [styles.destinationMain, { backgroundColor: pressed ? colors.accentSoft : 'transparent' }]}
                 >
-                  <View style={[styles.destinationIcon, { backgroundColor: isSelecting ? 'transparent' : colors.accentSoft }]}>
-                    <Feather name={isSelecting ? isSelected ? 'check-square' : 'square' : destination.kind === 'rail-station' ? 'navigation' : destination.kind === 'bus-dropoff' ? 'truck' : 'map-pin'} size={isSelecting ? 23 : 18} color={isSelecting && !isSelected ? colors.muted : colors.accent} />
+                  <View style={[styles.destinationIcon, !isSelecting && { borderRightWidth: 1, borderRightColor: colors.line, marginVertical: 4 }]}>
+                    {isSelecting ? (
+                      <Feather name={isSelected ? 'check-square' : 'square'} size={23} color={isSelected ? colors.accent : colors.muted} />
+                    ) : destination.kind === 'bus-dropoff' ? (
+                      <MaterialCommunityIcons name="bus" size={25} color={colors.accent} />
+                    ) : (
+                      <Feather name={destination.kind === 'rail-station' ? 'navigation' : 'map-pin'} size={20} color={colors.accent} />
+                    )}
                   </View>
                   <View style={styles.destinationCopy}>
                     <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.destinationName, { color: colors.ink }]}>{destination.name}</Text>
@@ -481,10 +488,10 @@ const styles = StyleSheet.create({
   deleteButton: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14 },
   deleteButtonText: { fontSize: 16, lineHeight: 22, fontWeight: '700', flexShrink: 1 },
   cardTarget: { width: '100%' },
-  destinationCard: { borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
-  destinationMain: { flex: 1, minHeight: 84, paddingHorizontal: 12, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  destinationIcon: { width: 37, height: 37, alignItems: 'center', justifyContent: 'center', borderRadius: 11 },
-  destinationCopy: { flex: 1, gap: 4 },
+  destinationCard: { borderWidth: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden' },
+  destinationMain: { flex: 1, minHeight: 84, paddingLeft: 12, paddingRight: 8, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' },
+  destinationIcon: { width: 44, alignItems: 'center', justifyContent: 'center' },
+  destinationCopy: { flex: 1, gap: 4, paddingLeft: 12, paddingRight: 4 },
   destinationKind: { fontSize: 12, lineHeight: 18, fontWeight: '500' },
   destinationName: { fontSize: 16, lineHeight: 22, fontWeight: '700', letterSpacing: -0.15 },
   switchTarget: { minWidth: 60, minHeight: 52, paddingRight: 12, alignItems: 'center', justifyContent: 'center' },

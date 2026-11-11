@@ -6,6 +6,7 @@ import * as TaskManager from 'expo-task-manager';
 import { processLocationBatch } from '../domain/location-processing';
 import { getLocationSamplingPolicy, type LocationSamplingPolicy } from '../domain/location-sampling';
 import { hasValidCoordinates } from '../domain/location-quality';
+import { buildMonitoringNotification } from '../domain/monitoring-notification';
 import type { DestinationAlarmEvent, LocationFix, TripEvent } from '../domain/models';
 import { getAlarmTone } from '../domain/alarm-tones';
 import { readAppState, updateAppState, type StoredAppState } from './storage';
@@ -15,16 +16,65 @@ import { publishLiveLocation, setTrackingProblem } from '../state/live-location'
 
 export const LOCATION_TASK_NAME = 'navo-trip-location-v1';
 const RELAX_PROFILE_AFTER_MS = 60_000;
+const MIN_NOTIFICATION_UPDATE_MS = 5_000;
 let reconcileQueue: Promise<void> = Promise.resolve();
 let relaxation: { key: string; since: number } | null = null;
 let relaxationTimer: ReturnType<typeof setTimeout> | null = null;
 let latestSpeedMps: number | null = null;
+let progressNotification: { contentKey: string; statusKey: string; postedAt: number } | null = null;
+let notificationFreshnessTimer: ReturnType<typeof setTimeout> | null = null;
+let notificationExpiresAt: number | null = null;
 const deliveries = new Map<string, Promise<void>>();
 
 function clearRelaxation(): void {
   if (relaxationTimer !== null) clearTimeout(relaxationTimer);
   relaxationTimer = null;
   relaxation = null;
+}
+
+function clearNotificationFreshness(): void {
+  if (notificationFreshnessTimer !== null) clearTimeout(notificationFreshnessTimer);
+  notificationFreshnessTimer = null;
+  notificationExpiresAt = null;
+}
+
+function scheduleNotificationFreshness(expiresAt: number | null): void {
+  if (expiresAt !== null && expiresAt === notificationExpiresAt && notificationFreshnessTimer !== null) return;
+  clearNotificationFreshness();
+  if (expiresAt === null || expiresAt <= Date.now()) return;
+  notificationExpiresAt = expiresAt;
+  notificationFreshnessTimer = setTimeout(() => {
+    notificationFreshnessTimer = null;
+    notificationExpiresAt = null;
+    void reconcileBackgroundLocation().catch(() => undefined);
+  }, expiresAt - Date.now());
+}
+
+async function updateProgressNotification(state: StoredAppState, sessionRunning: boolean): Promise<void> {
+  const now = Date.now();
+  const content = buildMonitoringNotification(state, now);
+  scheduleNotificationFreshness(content?.expiresAt ?? null);
+  const title = content?.title ?? 'Navo location check is active';
+  const body = content?.body ?? 'Waiting for a usable destination location.';
+  const contentKey = `${title}\n${body}`;
+  const statusKey = content?.statusKey ?? 'locating';
+  const shouldUpdate = !sessionRunning || !progressNotification
+    || progressNotification.statusKey !== statusKey
+    || (progressNotification.contentKey !== contentKey && now - progressNotification.postedAt >= MIN_NOTIFICATION_UPDATE_MS);
+  if (!shouldUpdate) return;
+  try {
+    // Updating the promoted session replaces its existing ongoing notification.
+    // It does not schedule another notification, sound, or location watcher.
+    await LocationSession.ensureBackgroundSessionStarted({
+      notificationTitle: title, notificationBody: body,
+      notificationColor: 0x0869A8, stopOnTaskRemoved: true,
+    });
+    progressNotification = { contentKey, statusKey, postedAt: now };
+  } catch (error) {
+    // A presentation update must not stop a working arrival detector. Retain the
+    // old cache so the next usable wake retries; initial service startup must fail.
+    if (!sessionRunning) throw error;
+  }
 }
 
 function hasLocationWork(state: StoredAppState): boolean {
@@ -102,6 +152,8 @@ function optionsMatch(current: Record<string, unknown> | null, desired: Location
 
 async function stopTracking(running: boolean): Promise<void> {
   clearRelaxation();
+  clearNotificationFreshness();
+  progressNotification = null;
   if (running) await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
   if (Platform.OS === 'android') await LocationSession.stopBackgroundSession();
   latestSpeedMps = null;
@@ -134,18 +186,14 @@ async function reconcileTracking(): Promise<void> {
     setTrackingProblem(null);
     return;
   }
-  if (Platform.OS === 'android' && !LocationSession.getBackgroundSessionStatus().unthrottled) {
-    if (AppState.currentState !== 'active') {
+  if (Platform.OS === 'android') {
+    const sessionRunning = LocationSession.getBackgroundSessionStatus().unthrottled;
+    if (!sessionRunning && AppState.currentState !== 'active') {
       // Do not dismantle a pre-upgrade legacy service during a headless wake.
       setTrackingProblem('Open Navo to resume reliable background location checks.');
       return;
     }
-    await LocationSession.ensureBackgroundSessionStarted({
-      notificationTitle: 'Navo location check is active',
-      notificationBody: 'Navo checks your active destination alarm or route trip.',
-      notificationColor: 0x0869A8,
-      stopOnTaskRemoved: true,
-    });
+    await updateProgressNotification(state, sessionRunning);
   }
   const policy = getLocationSamplingPolicy(state, Date.now(), latestSpeedMps);
   const desired = locationOptions(policy);

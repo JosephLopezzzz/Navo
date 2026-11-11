@@ -17,8 +17,10 @@ await renderBrandedIcon(1024, path.join(root, 'assets/icon.png'));
 await renderBrandedIcon(196, path.join(root, 'assets/splash-icon.png'), 42);
 await renderBrandedIcon(192, path.join(root, 'assets/favicon.png'), 40);
 await sharp(mark)
-  .resize(460, 460, { fit: 'contain' })
-  .extend({ top: 26, bottom: 26, left: 26, right: 26, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+  // Keep every visible part of the mark inside Android's central safe zone.
+  // The SVG already contains transparent margins; preserve its proportions.
+  .resize(330, 330, { fit: 'contain' })
+  .extend({ top: 91, bottom: 91, left: 91, right: 91, background: { r: 0, g: 0, b: 0, alpha: 0 } })
   .png()
   .toFile(path.join(root, 'assets/android-icon-foreground.png'));
 await sharp(monochrome).resize(96, 96).png().toFile(path.join(root, 'assets/notification-icon.png'));

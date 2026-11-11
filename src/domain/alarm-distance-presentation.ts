@@ -18,6 +18,7 @@ export interface AlarmDistancePresentation {
   detail: string;
   distanceLabel: string | null;
   updatedLabel: string | null;
+  fixAt: number | null;
   isLastKnown: boolean;
   tone: 'neutral' | 'success' | 'warning';
 }
@@ -72,7 +73,7 @@ export function getAlarmDistancePresentation(
   const isLastKnown = locationAt !== null && (alerted || stale || Boolean(reading.problem || reading.trackingProblem));
   const distanceLabel = distanceM === null ? null : `${isLastKnown ? 'Last known: ' : ''}${formatAlarmDistance(distanceM)}`;
   const updatedLabel = locationAt === null ? null : formatFixAge(locationAt, now);
-  const common = { distanceLabel, updatedLabel, isLastKnown };
+  const common = { distanceLabel, updatedLabel, isLastKnown, fixAt: locationAt };
 
   if (alerted) {
     return {

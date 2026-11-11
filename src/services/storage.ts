@@ -10,6 +10,7 @@ const STORAGE_KEY = 'navo:state:v1';
 const DATABASE_NAME = 'navo-state.db';
 const STATE_ROW_ID = 1;
 export interface AppSettings {
+  monitoringAlarmId?: string | null;
   approachRadiusM: number;
   updateDistanceM: number;
   updateIntervalMs: number;
@@ -47,6 +48,7 @@ export interface StoredAppState {
   lastTripNotice: string | null;
 }
 export const defaultSettings: AppSettings = {
+  monitoringAlarmId: null,
   approachRadiusM: 500,
   updateDistanceM: 75,
   updateIntervalMs: 20_000,
@@ -102,6 +104,7 @@ export function normalizeAppState(value: unknown): StoredAppState {
     settings: {
       ...defaultSettings,
       ...parsed.settings,
+      monitoringAlarmId: typeof parsed.settings?.monitoringAlarmId === 'string' ? parsed.settings.monitoringAlarmId : null,
       appearance: parsed.settings?.appearance === 'dark'
         ? 'dark'
         : parsed.settings?.appearance === 'system' ? 'system' : 'light',

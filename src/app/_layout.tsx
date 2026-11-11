@@ -73,7 +73,7 @@ function RootNavigator() {
   const trackingWorkKey = JSON.stringify({
     alarms: app.destinationAlarms.filter((alarm) => alarm.enabled).map((alarm) => [alarm.id, alarm.sessionId, alarm.radiusM]),
     trip: app.activeTrip ? [app.activeTrip.id, app.activeTrip.status, app.activeTrip.lastConfirmedIndex] : null,
-    settings: [app.settings.updateIntervalMs, app.settings.updateDistanceM],
+    settings: [app.settings.updateIntervalMs, app.settings.updateDistanceM, app.settings.monitoringAlarmId],
   });
   const pendingAlarmKey = app.destinationAlarms.flatMap((alarm) => alarm.pendingEvent ? [alarm.pendingEvent.id] : []).join('|');
   const hasMonitoringWork = app.destinationAlarms.some((alarm) => alarm.enabled)

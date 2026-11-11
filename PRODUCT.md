@@ -34,7 +34,7 @@ The source includes destination search and map selection through TomTom, saved d
 
 Release gate: confirm with TomTom that the applicable API and map license permits storing provider-derived destination coordinates for a rider's saved alarms. [Public third-party terms](https://www.tomtom.com/en-gb/legal/third-party-product-terms/) restrict creating certain digital map databases and define one to include latitude/longitude of individual addresses; this project has not received license-specific confirmation.
 
-Bundled rail data contains names and station order, but no rail station coordinates. Bus coordinates are recorded by the rider and are not independently verified. Route direction and deviation advice use coarse straight-line checks. There is no live transit feed, live operating status, ETA, or lock-screen progress surface.
+Bundled rail data contains names and station order, but no rail station coordinates. Bus coordinates are recorded by the rider and are not independently verified. Route direction and deviation advice use coarse straight-line checks. There is no live transit feed, live operating status or ETA. Android's ongoing monitoring notification displays the active destination and rounded GPS distance; actual lock-screen visibility and rendering depend on the phone's notification settings.
 
 TomTom search and map requests require a key and network access while choosing a place. The EXPO_PUBLIC_TOMTOM_API_KEY value is included in the client build and must be treated as public client configuration. Search terms and map tile requests go to TomTom. The source does not configure a Navo backend or upload GPS samples used by alarms.
 

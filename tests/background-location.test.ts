@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   registered: false,
   appState: 'active',
   unthrottled: false,
+  sessionStarts: 0,
   options: null as Record<string, unknown> | null,
   defineTask: vi.fn(), read: vi.fn(), update: vi.fn(),
   hasStarted: vi.fn(), start: vi.fn(), stop: vi.fn(), taskOptions: vi.fn(), servicesEnabled: vi.fn(),
@@ -120,6 +121,7 @@ beforeEach(() => {
   mocks.registered = false;
   mocks.appState = 'active';
   mocks.unthrottled = false;
+  mocks.sessionStarts = 0;
   mocks.options = null;
   mocks.task = null;
   mocks.defineTask.mockImplementation((_name, task) => { mocks.task = task; });
@@ -134,7 +136,10 @@ beforeEach(() => {
   mocks.taskOptions.mockImplementation(async () => mocks.options);
   mocks.servicesEnabled.mockResolvedValue(true);
   mocks.sessionStatus.mockImplementation(() => ({ unthrottled: mocks.unthrottled }));
-  mocks.ensureSession.mockImplementation(async () => { mocks.unthrottled = true; });
+  mocks.ensureSession.mockImplementation(async () => {
+    if (!mocks.unthrottled) mocks.sessionStarts += 1;
+    mocks.unthrottled = true;
+  });
   mocks.stopSession.mockImplementation(async () => { mocks.unthrottled = false; });
   mocks.readPermissions.mockResolvedValue({ notifications: true, foreground: true, background: true, ready: true });
   mocks.requestPermissions.mockResolvedValue({ notifications: true, foreground: true, background: true, ready: true });
@@ -332,7 +337,7 @@ describe('shared background distance tracking', () => {
     expect(mocks.start).toHaveBeenCalledTimes(2);
     expect(mocks.start).toHaveBeenLastCalledWith(service.LOCATION_TASK_NAME, expect.objectContaining({ accuracy: 4, timeInterval: 2_000 }));
     for (const [, options] of mocks.start.mock.calls) expect(options).not.toHaveProperty('foregroundService');
-    expect(mocks.ensureSession).toHaveBeenCalledOnce();
+    expect(mocks.sessionStarts).toBe(1);
     expect(mocks.stop).not.toHaveBeenCalled();
     expect(mocks.stopSession).not.toHaveBeenCalled();
   });
@@ -389,8 +394,7 @@ describe('shared background distance tracking', () => {
 
     expect(mocks.start).toHaveBeenCalledTimes(2);
     expect(mocks.start).toHaveBeenLastCalledWith(service.LOCATION_TASK_NAME, expect.objectContaining({ accuracy: 3, timeInterval: 20_000, distanceInterval: 75 }));
-    expect(mocks.ensureSession).toHaveBeenCalledOnce();
-    expect(vi.getTimerCount()).toBe(0);
+    expect(mocks.sessionStarts).toBe(1);
   });
 
   it('cancels a pending profile timer when the final alarm is disabled', async () => {
@@ -404,7 +408,7 @@ describe('shared background distance tracking', () => {
       lastLocationAccuracyM: 10,
     };
     await service.reconcileBackgroundLocation();
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
     mocks.state.destinationAlarms = [];
 
     await service.stopBackgroundLocationIfIdle();
@@ -431,7 +435,6 @@ describe('shared background distance tracking', () => {
 
     expect(mocks.start).toHaveBeenCalledTimes(2);
     expect(mocks.start).toHaveBeenLastCalledWith(service.LOCATION_TASK_NAME, expect.objectContaining({ accuracy: 3, timeInterval: 10_000, distanceInterval: 25 }));
-    expect(vi.getTimerCount()).toBe(0);
     expect(mocks.state.destinationAlarms[0].watchState).toBe('awaiting-exit');
   });
 
@@ -475,5 +478,93 @@ describe('shared background distance tracking', () => {
     expect(mocks.start).toHaveBeenCalledTimes(2);
     expect(mocks.ensureSession).toHaveBeenCalledTimes(2);
     expect(mocks.requestPermissions).not.toHaveBeenCalled();
+  });
+
+  it('updates the same quiet monitoring notification with the destination and distance while backgrounded', async () => {
+    const service = await loadService();
+    await service.reconcileBackgroundLocation();
+    mocks.appState = 'background';
+
+    await mocks.task!({ data: { locations: [location(2_000, 0)] } });
+
+    expect(mocks.ensureSession).toHaveBeenLastCalledWith(expect.objectContaining({
+      notificationTitle: 'Home',
+      notificationBody: expect.stringContaining('About 2.0 km away'),
+    }));
+    expect(mocks.ensureSession.mock.lastCall![0].notificationBody).toContain('GPS ');
+    expect(mocks.sessionStarts).toBe(1);
+    expect(mocks.schedule).not.toHaveBeenCalled();
+    expect(mocks.deliver).not.toHaveBeenCalled();
+    expect(mocks.stop).not.toHaveBeenCalled();
+  });
+
+  it('limits distance-only notification redraws while continuing to process each usable fix', async () => {
+    await loadService();
+    await mocks.task!({ data: { locations: [location(5_000, 0)] } });
+    expect(mocks.ensureSession).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await mocks.task!({ data: { locations: [location(4_000, -1_000)] } });
+    expect(mocks.ensureSession).toHaveBeenCalledOnce();
+    expect(mocks.state!.destinationAlarms[0].lastDistanceM).toBeCloseTo(4_000, -1);
+    await vi.advanceTimersByTimeAsync(4_000);
+    await mocks.task!({ data: { locations: [location(3_000, -5_000)] } });
+    expect(mocks.ensureSession).toHaveBeenCalledTimes(2);
+    expect(mocks.ensureSession.mock.lastCall![0].notificationBody).toContain('About 3.0 km away');
+    expect(mocks.sessionStarts).toBe(1);
+  });
+
+  it('switches the notification target immediately when the viewed active alarm changes', async () => {
+    const other = { ...destination, id: 'station', name: 'Recto Station' };
+    mocks.state!.destinations.push(other);
+    mocks.state!.destinationAlarms.push(armDestinationAlarm(createDestinationAlarm('station-alarm', other.id), 'station-session', NOW - 50_000));
+    mocks.state!.settings = { ...mocks.state!.settings, monitoringAlarmId: 'alarm-home' };
+    const point = location(2_000, 0);
+    mocks.state!.lastLocation = { latitude: point.coords.latitude, longitude: point.coords.longitude };
+    mocks.state!.lastLocationAt = NOW;
+    mocks.state!.lastLocationAccuracyM = 10;
+    const service = await loadService();
+    await service.reconcileBackgroundLocation();
+    expect(mocks.ensureSession.mock.lastCall![0].notificationTitle).toBe('Home');
+    mocks.appState = 'background';
+    await vi.advanceTimersByTimeAsync(1_000);
+    mocks.state!.settings.monitoringAlarmId = 'station-alarm';
+
+    await service.reconcileBackgroundLocation();
+
+    expect(mocks.ensureSession.mock.lastCall![0].notificationTitle).toBe('Recto Station');
+    expect(mocks.ensureSession.mock.lastCall![0].notificationBody).toContain('1 other alarm on');
+    expect(mocks.ensureSession).toHaveBeenCalledTimes(2);
+    expect(mocks.sessionStarts).toBe(1);
+    expect(mocks.start).toHaveBeenCalledOnce();
+    expect(mocks.state!.destinationAlarms.every((alarm) => alarm.enabled)).toBe(true);
+  });
+
+  it('marks the displayed distance last known when usable GPS updates fall silent', async () => {
+    await loadService();
+    await mocks.task!({ data: { locations: [location(10_000, 0)] } });
+    expect(mocks.ensureSession.mock.lastCall![0].notificationBody).not.toContain('Last known');
+
+    await vi.advanceTimersByTimeAsync(45_001);
+
+    expect(mocks.ensureSession.mock.lastCall![0].notificationBody).toContain('Last known: About 10.0 km away');
+    expect(mocks.ensureSession.mock.lastCall![0].notificationBody).toContain('Location update delayed');
+    expect(mocks.start).toHaveBeenCalledOnce();
+    expect(mocks.sessionStarts).toBe(1);
+    expect(mocks.schedule).not.toHaveBeenCalled();
+  });
+
+  it('keeps arrival detection running if a progress-notification update fails, and retries the next wake', async () => {
+    await loadService();
+    await mocks.task!({ data: { locations: [location(5_000, 0)] } });
+    mocks.ensureSession.mockRejectedValueOnce(new Error('Notification temporarily unavailable'));
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await expect(mocks.task!({ data: { locations: [location(4_000, -5_000)] } })).resolves.toBeUndefined();
+    expect(mocks.registered).toBe(true);
+    expect(mocks.state!.destinationAlarms[0].enabled).toBe(true);
+    await vi.advanceTimersByTimeAsync(5_000);
+    await mocks.task!({ data: { locations: [location(3_000, -10_000)] } });
+    expect(mocks.ensureSession.mock.lastCall![0].notificationBody).toContain('About 3.0 km away');
+    expect(mocks.sessionStarts).toBe(1);
   });
 });

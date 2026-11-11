@@ -53,6 +53,8 @@ The session and location task are both stopped when no alarm or mapped route tri
 
 ## Native acceptance checklist
 
+The Android session notification now follows the viewed enabled destination (persisted as an optional display preference), shows rounded distance/status and an absolute GPS check time, and falls back to another enabled alarm or mapped active trip when necessary. Content-only redraws are limited to every five seconds; target/status changes are immediate. The same promoted notification is updated without a second notification or GPS subscription. A best-effort freshness timer can mark retained distance last known, but the GPS clock time remains the truthful age reference when JS execution is suspended. See `docs/design/navo-monitoring/PLAN.md` for the separate proposed UI mockups and offline capability matrix.
+
 Use an updated development or release build on physical Android and iOS devices. JavaScript export and simulated GPS tests do not establish background reliability.
 
 - [ ] Enable a saved destination outside its radius; confirm automatic distance updates and correct units. Enable near the destination; verify waiting-to-leave behavior and no immediate arrival alert.

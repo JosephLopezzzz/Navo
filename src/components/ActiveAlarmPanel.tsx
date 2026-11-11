@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppState, StyleSheet, Text, View } from 'react-native';
 import { getAlarmDistancePresentation } from '../domain/alarm-distance-presentation';
 import { useAppState } from '../state/AppStateProvider';
@@ -12,7 +12,7 @@ export function ActiveAlarmPanel() {
   const app = useAppState();
   const reading = useLiveLocation();
   const colors = useNavoColors();
-  const [selectedAlarmId, setSelectedAlarmId] = useState<string | null>(null);
+  const [selectedAlarmId, setSelectedAlarmId] = useState<string | null>(app.settings.monitoringAlarmId ?? null);
   const [choosing, setChoosing] = useState(false);
   const [now, setNow] = useState(Date.now);
   const hasPanel = app.destinationAlarms.some((alarm) => (alarm.enabled || alarm.watchState === 'alerted')
@@ -45,6 +45,17 @@ export function ActiveAlarmPanel() {
   // Pin the initial default too: new alarms must not silently change the viewed destination.
   if (alarm && alarm.id !== selectedAlarmId) setSelectedAlarmId(alarm.id);
   const destination = app.destinations.find((item) => item.id === alarm?.destinationId);
+  const displayedActiveAlarmId = alarm?.enabled ? alarm.id : null;
+  const mutateState = app.mutateState;
+  useEffect(() => {
+    if (!displayedActiveAlarmId) return;
+    // Persist display focus so a headless task uses the same destination in the
+    // ongoing notification, without changing any alarm's enabled state.
+    void mutateState((current) => current.settings.monitoringAlarmId === displayedActiveAlarmId
+      || !current.destinationAlarms.some((item) => item.id === displayedActiveAlarmId && item.enabled)
+      ? current
+      : { ...current, settings: { ...current.settings, monitoringAlarmId: displayedActiveAlarmId } }).catch(() => undefined);
+  }, [displayedActiveAlarmId, mutateState]);
   if (!alarm || !destination) return null;
 
   const options = selected && !selected.enabled ? [selected, ...enabled] : enabled;
