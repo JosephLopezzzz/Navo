@@ -3,6 +3,8 @@ import * as SQLite from 'expo-sqlite';
 import type { DestinationAlarm, DestinationKind, SavedDestination, TransitRoute, Trip } from '../domain/models';
 import { DEFAULT_ALARM_TONE_ID, isAlarmToneId } from '../domain/alarm-tones';
 import { normalizeImportedSounds, type ImportedAlarmSound } from '../domain/imported-alarm-sounds';
+import { publishAppStateChange, type StateChangeSource } from '../state/app-state-events';
+import { publishLiveLocation } from '../state/live-location';
 
 const STORAGE_KEY = 'navo:state:v1';
 const DATABASE_NAME = 'navo-state.db';
@@ -211,16 +213,28 @@ export async function readAppState(): Promise<StoredAppState> {
 
 export async function updateAppState(
   mutate: (current: StoredAppState) => StoredAppState,
+  source: StateChangeSource = 'mutation',
 ): Promise<StoredAppState> {
   const database = await getDatabase();
   let updated: StoredAppState | null = null;
+  let changed = false;
+  let resetLiveLocation = false;
   await withDatabaseRetry(() => database.withExclusiveTransactionAsync(async (transaction) => {
     const row = await transaction.getFirstAsync<{ value: string }>(
       'SELECT value FROM app_state WHERE id = ?',
       STATE_ROW_ID,
     );
     const current = parseStoredValue(row?.value ?? null);
-    updated = normalizeAppState(mutate(current));
+    const next = mutate(current);
+    changed = next !== current;
+    resetLiveLocation = source === 'mutation' && current.lastLocation !== null
+      && next.lastLocation === null && next.lastLocationAt === null;
+    // Duplicate/out-of-order location callbacks must not rewrite the state blob.
+    if (next === current) {
+      updated = current;
+      return;
+    }
+    updated = normalizeAppState(next);
     await transaction.runAsync(
       'INSERT INTO app_state (id, value) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value',
       STATE_ROW_ID,
@@ -228,5 +242,9 @@ export async function updateAppState(
     );
   }));
   if (!updated) throw new Error('Navo could not save the latest device state.');
+  if (changed) {
+    publishLiveLocation(updated, { reset: resetLiveLocation });
+    publishAppStateChange(updated, source);
+  }
   return updated;
 }

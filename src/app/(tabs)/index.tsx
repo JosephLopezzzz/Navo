@@ -15,6 +15,7 @@ import { readAlarmPermissions, type AlarmPermissionSummary } from '../../service
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
 import { GuideTarget, useGuideControls } from '../../components/guide/GuideTargets';
+import { ActiveAlarmPanel } from '../../components/ActiveAlarmPanel';
 
 function destinationType(destination: SavedDestination): string {
   if (destination.kind === 'rail-station') return 'Rail';
@@ -245,6 +246,8 @@ export default function RideHomeScreen() {
         <ScreenTitle>Saved alarms</ScreenTitle>
         <Text accessibilityLiveRegion="polite" style={[styles.count, { color: colors.muted }]}>{isSelecting ? `${selectedIds.size} selected` : `${app.destinations.length} saved · ${allAlarmsLabel}`}</Text>
       </View>
+
+      {!isSelecting ? <ActiveAlarmPanel /> : null}
 
       {app.activeTrip && app.activeRoute ? (
         <Pressable motion="card" accessibilityRole="button" onPress={() => router.push('/trip/active')} style={({ pressed }) => [styles.tripCard, { backgroundColor: pressed ? colors.accentHoverSoft : colors.accentSoft, borderColor: pressed ? colors.accent : 'transparent' }]}>

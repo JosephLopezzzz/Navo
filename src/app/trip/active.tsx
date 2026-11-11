@@ -9,10 +9,12 @@ import { distanceBetweenMeters, manuallyConfirmNextStop } from '../../domain/tri
 import { stopBackgroundLocationIfIdle } from '../../services/background-location';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
+import { useLiveLocation } from '../../state/live-location';
 
 export default function ActiveTripScreen() {
   const colors = useNavoColors();
   const app = useAppState();
+  const liveLocation = useLiveLocation();
   const refreshState = app.refreshState;
   useFocusEffect(useCallback(() => {
     void refreshState();
@@ -36,13 +38,13 @@ export default function ActiveTripScreen() {
   const nextStop = route.stops[nextIndex];
   const destination = route.stops[trip.destinationIndex];
   const routeHasLocations = route.coordinateStatus === 'complete' && route.stops.every((stop) => stop.latitude !== undefined && stop.longitude !== undefined);
-  const metersToNext = app.lastLocation && nextStop?.latitude !== undefined && nextStop.longitude !== undefined
-    ? distanceBetweenMeters(app.lastLocation, { latitude: nextStop.latitude, longitude: nextStop.longitude })
+  const metersToNext = liveLocation.location && nextStop?.latitude !== undefined && nextStop.longitude !== undefined
+    ? distanceBetweenMeters(liveLocation.location, { latitude: nextStop.latitude, longitude: nextStop.longitude })
     : null;
-  const fixTime = app.lastLocationAt === null ? null : new Date(app.lastLocationAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const fixTime = liveLocation.locationAt === null ? null : new Date(liveLocation.locationAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const fixLabel = fixTime === null
     ? 'Waiting for a location fix.'
-    : 'Last location check at ' + fixTime + ' · ±' + Math.round(app.lastLocationAccuracyM ?? 0) + ' m accuracy.';
+    : 'Last location check at ' + fixTime + ' · ±' + Math.round(liveLocation.accuracyM ?? 0) + ' m accuracy.';
   const passed = trip.lastConfirmedIndex;
 
   const confirmNext = async () => {

@@ -1,10 +1,12 @@
 import type { DestinationAlarm, DestinationAlarmEvent, LocationFix, SavedDestination } from './models';
 import { DEFAULT_ALARM_TONE_ID } from './alarm-tones';
+import { getLocationFixProblem, hasValidCoordinates, MAX_FUTURE_FIX_SKEW_MS, MAX_USABLE_FIX_ACCURACY_M, type LocationFixProblem } from './location-quality';
 
 export const DEFAULT_DESTINATION_RADIUS_M = 500;
-export const MAX_ALARM_FIX_ACCURACY_M = 80;
+export const MAX_ALARM_FIX_ACCURACY_M = MAX_USABLE_FIX_ACCURACY_M;
 const EXIT_HYSTERESIS_M = 100;
 const REQUIRED_INSIDE_FIXES = 2;
+const MAX_INSIDE_FIX_GAP_MS = 30_000;
 const EARTH_RADIUS_M = 6_371_008.8;
 
 export function createDestinationAlarm(id: string, destinationId: string, radiusM = DEFAULT_DESTINATION_RADIUS_M): DestinationAlarm {
@@ -68,30 +70,28 @@ export function distanceBetweenCoordinatesM(
   const secondLatitude = radians(second.latitude);
   const haversine = Math.sin(latitudeDelta / 2) ** 2
     + Math.cos(firstLatitude) * Math.cos(secondLatitude) * Math.sin(longitudeDelta / 2) ** 2;
-  return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  const bounded = Math.max(0, Math.min(1, haversine));
+  return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(bounded), Math.sqrt(1 - bounded));
 }
 
 export function evaluateDestinationAlarmFix(
   destination: SavedDestination,
   alarm: DestinationAlarm,
   fix: LocationFix,
-): { alarm: DestinationAlarm; event: DestinationAlarmEvent | null; ignoredReason?: 'inactive' | 'poor-accuracy' | 'out-of-order' } {
+  now = Date.now(),
+): { alarm: DestinationAlarm; event: DestinationAlarmEvent | null; ignoredReason?: 'inactive' | 'out-of-order' | 'invalid-destination' | LocationFixProblem } {
   if (!alarm.enabled || !alarm.sessionId || alarm.watchState === 'off' || alarm.watchState === 'alerted') {
     return { alarm, event: null, ignoredReason: 'inactive' };
   }
-  if (
-    !Number.isFinite(fix.latitude)
-    || !Number.isFinite(fix.longitude)
-    || !Number.isFinite(fix.timestamp)
-    || fix.latitude < -90 || fix.latitude > 90
-    || fix.longitude < -180 || fix.longitude > 180
-    || fix.accuracyM === null
-    || !Number.isFinite(fix.accuracyM)
-    || fix.accuracyM > MAX_ALARM_FIX_ACCURACY_M
-  ) {
-    return { alarm, event: null, ignoredReason: 'poor-accuracy' };
-  }
-  if (alarm.lastFixAt !== null && fix.timestamp <= alarm.lastFixAt) {
+  if (!hasValidCoordinates(destination) || !Number.isFinite(alarm.radiusM) || alarm.radiusM < 0) return { alarm, event: null, ignoredReason: 'invalid-destination' };
+  const problem = getLocationFixProblem(fix, now, alarm.armedAt);
+  if (problem) return { alarm, event: null, ignoredReason: problem };
+  // Older builds could persist a malformed/future watermark. Do not let it
+  // block a fresh fix or contribute a false first arrival confirmation.
+  const previousFixAt = alarm.lastFixAt !== null && Number.isFinite(alarm.lastFixAt)
+    && alarm.lastFixAt >= 0 && alarm.lastFixAt <= now + MAX_FUTURE_FIX_SKEW_MS
+    && (alarm.armedAt === null || alarm.lastFixAt >= alarm.armedAt) ? alarm.lastFixAt : null;
+  if (previousFixAt !== null && fix.timestamp <= previousFixAt) {
     return { alarm, event: null, ignoredReason: 'out-of-order' };
   }
 
@@ -99,15 +99,17 @@ export function evaluateDestinationAlarmFix(
   const next = { ...alarm, lastFixAt: fix.timestamp, lastDistanceM: distanceM };
 
   if (alarm.watchState === 'awaiting-exit') {
-    const exitThresholdM = alarm.radiusM + fix.accuracyM + EXIT_HYSTERESIS_M;
+    const exitThresholdM = alarm.radiusM + fix.accuracyM! + EXIT_HYSTERESIS_M;
     return {
       alarm: distanceM > exitThresholdM ? { ...next, watchState: 'monitoring' } : next,
       event: null,
     };
   }
 
-  const inside = distanceM <= alarm.radiusM + fix.accuracyM;
-  const consecutiveInsideFixes = inside ? alarm.consecutiveInsideFixes + 1 : 0;
+  const inside = distanceM <= alarm.radiusM + fix.accuracyM!;
+  const previousInsideFixes = previousFixAt !== null && fix.timestamp - previousFixAt <= MAX_INSIDE_FIX_GAP_MS
+    ? alarm.consecutiveInsideFixes : 0;
+  const consecutiveInsideFixes = inside ? previousInsideFixes + 1 : 0;
   if (consecutiveInsideFixes < REQUIRED_INSIDE_FIXES) {
     return { alarm: { ...next, consecutiveInsideFixes }, event: null };
   }

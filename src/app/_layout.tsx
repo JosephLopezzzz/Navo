@@ -1,12 +1,12 @@
 import { useCallback, useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Appearance, View } from "react-native";
+import { AppState, Appearance, View } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { AppStateProvider, useAppState } from "../state/AppStateProvider";
 import { useNavoColors } from "../theme/colors";
 import { OfflineManager } from "@maplibre/maplibre-react-native";
-import { deliverPendingDestinationAlarmEvents } from "../services/background-location";
+import { deliverPendingDestinationAlarmEvents, reconcileBackgroundLocation } from "../services/background-location";
 import * as Notifications from "expo-notifications";
 import { LEGAL_DOCUMENT_VERSION } from "../data/legal";
 import { GuideTargetsProvider } from "../components/guide/GuideTargets";
@@ -70,6 +70,14 @@ function RootNavigator() {
       ? "/first-run/legal"
       : "/first-run/profile";
   const mutateState = app.mutateState;
+  const trackingWorkKey = JSON.stringify({
+    alarms: app.destinationAlarms.filter((alarm) => alarm.enabled).map((alarm) => [alarm.id, alarm.sessionId, alarm.radiusM]),
+    trip: app.activeTrip ? [app.activeTrip.id, app.activeTrip.status, app.activeTrip.lastConfirmedIndex] : null,
+    settings: [app.settings.updateIntervalMs, app.settings.updateDistanceM],
+  });
+  const pendingAlarmKey = app.destinationAlarms.flatMap((alarm) => alarm.pendingEvent ? [alarm.pendingEvent.id] : []).join('|');
+  const hasMonitoringWork = app.destinationAlarms.some((alarm) => alarm.enabled)
+    || (app.activeTrip?.status === 'active' && app.activeRoute?.coordinateStatus === 'complete');
   const finishGuide = useCallback(() => {
     void mutateState((current) => ({
       ...current,
@@ -86,8 +94,29 @@ function RootNavigator() {
     if (app.ready || app.storageProblem) void SplashScreen.hideAsync();
   }, [app.ready, app.storageProblem]);
   useEffect(() => {
-    if (app.ready) void deliverPendingDestinationAlarmEvents();
-  }, [app.ready]);
+    if (!app.ready) return;
+    const recover = () => {
+      if (AppState.currentState !== 'active') return;
+      void reconcileBackgroundLocation().catch(() => undefined);
+      void deliverPendingDestinationAlarmEvents().catch(() => undefined);
+    };
+    recover();
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') recover(); });
+    // Recover a disabled provider or lost registration even without a new GPS wake.
+    const interval = hasMonitoringWork ? setInterval(recover, 30_000) : null;
+    return () => {
+      subscription.remove();
+      if (interval !== null) clearInterval(interval);
+    };
+  }, [app.ready, trackingWorkKey, hasMonitoringWork]);
+  useEffect(() => {
+    if (!app.ready || !pendingAlarmKey) return;
+    // Delivery retries do not keep GPS running after arrival.
+    const interval = setInterval(() => {
+      if (AppState.currentState === 'active') void deliverPendingDestinationAlarmEvents().catch(() => undefined);
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [app.ready, pendingAlarmKey]);
   useEffect(() => {
     if (!app.ready) return;
     const timer = setTimeout(() => {

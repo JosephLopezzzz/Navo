@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   armDestinationAlarm,
   createDestinationAlarm,
@@ -29,6 +29,8 @@ function fix(distanceM: number, timestamp: number, accuracyM: number | null = 10
 }
 
 describe('destination alarm evaluator', () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(3_000); });
+  afterEach(() => vi.useRealTimers());
   it('keeps saved alarms off until the rider arms them', () => {
     const alarm = createDestinationAlarm('alarm-1', destination.id);
     expect(alarm.enabled).toBe(false);
@@ -88,5 +90,41 @@ describe('destination alarm evaluator', () => {
   it('calculates real distance across latitude and longitude', () => {
     expect(distanceBetweenCoordinatesM(destination, destination)).toBe(0);
     expect(distanceBetweenCoordinatesM(destination, { latitude: destination.latitude, longitude: destination.longitude + 0.01 })).toBeGreaterThan(1000);
+  });
+
+  it('does not count samples captured before this alarm session', () => {
+    const alarm = armDestinationAlarm(createDestinationAlarm('alarm-1', destination.id), 'journey-1', 2_000);
+    const result = evaluateDestinationAlarmFix(destination, alarm, fix(800, 1_000));
+    expect(result.ignoredReason).toBe('pre-session');
+    expect(result.alarm).toBe(alarm);
+  });
+
+  it('requires nearby confirmations within the same short approach', () => {
+    const alarm = { ...armDestinationAlarm(createDestinationAlarm('alarm-1', destination.id), 'journey-1', 0), watchState: 'monitoring' as const };
+    const first = evaluateDestinationAlarmFix(destination, alarm, fix(300, 40_000), 40_000);
+    const muchLater = evaluateDestinationAlarmFix(destination, first.alarm, fix(300, 80_000), 80_000);
+    const confirming = evaluateDestinationAlarmFix(destination, muchLater.alarm, fix(300, 82_000), 82_000);
+    expect(muchLater.event).toBeNull();
+    expect(muchLater.alarm.consecutiveInsideFixes).toBe(1);
+    expect(confirming.event).not.toBeNull();
+  });
+
+  it('keeps antipodal distance finite despite floating-point rounding', () => {
+    expect(distanceBetweenCoordinatesM({ latitude: 37.7749, longitude: -122.4194 }, { latitude: -37.7749, longitude: 57.5806 })).toBeCloseTo(Math.PI * 6_371_008.8, 0);
+  });
+
+  it('recovers from a previously stored future fix without counting its arrival confirmation', () => {
+    const alarm = {
+      ...armDestinationAlarm(createDestinationAlarm('alarm-1', destination.id), 'journey-1', 0),
+      watchState: 'monitoring' as const,
+      lastFixAt: 90_000,
+      consecutiveInsideFixes: 1,
+    };
+    const first = evaluateDestinationAlarmFix(destination, alarm, fix(300, 2_000), 2_000);
+    expect(first.ignoredReason).toBeUndefined();
+    expect(first.event).toBeNull();
+    expect(first.alarm.consecutiveInsideFixes).toBe(1);
+    expect(first.alarm.lastFixAt).toBe(2_000);
+    expect(evaluateDestinationAlarmFix(destination, first.alarm, fix(300, 3_000), 3_000).event).not.toBeNull();
   });
 });

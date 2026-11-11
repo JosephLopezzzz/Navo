@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { AppState } from 'react-native';
 import { defaultFirstRunState, defaultSettings, readAppState, updateAppState, type StoredAppState } from '../services/storage';
+import { subscribeToAppStateChanges, visibleAppStateSignature } from './app-state-events';
+import { publishLiveLocation } from './live-location';
 
 interface AppStateContextValue extends StoredAppState {
   ready: boolean;
@@ -35,7 +37,9 @@ export function AppStateProvider({ children }: PropsWithChildren) {
 
   const refreshState = useCallback(async () => {
     try {
-      setState(await readAppStateWithTimeout());
+      const latest = await readAppStateWithTimeout();
+      publishLiveLocation(latest);
+      setState(latest);
       hasLoadedState.current = true;
       setStorageProblem(null);
     } catch (error) {
@@ -65,6 +69,11 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     }));
   }, [mutateState]);
 
+  useEffect(() => subscribeToAppStateChanges((latest, source) => {
+    setState((current) => source === 'location' && current
+      && visibleAppStateSignature(current) === visibleAppStateSignature(latest) ? current : latest);
+  }), []);
+
   useEffect(() => {
     let mounted = true;
     const timeout = setTimeout(() => {
@@ -72,6 +81,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     }, STORAGE_TIMEOUT_MS);
     void readAppState().then((saved) => {
       if (mounted) {
+        publishLiveLocation(saved);
         setState(saved);
         hasLoadedState.current = true;
         setStorageProblem(null);
@@ -93,9 +103,10 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     || state?.destinationAlarms.some((alarm) => alarm.enabled));
   useEffect(() => {
     if (!hasActiveLocationWork) return;
+    // Recovery for location tasks launched in a separate headless JS runtime.
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') void refreshState();
-    }, 15_000);
+    }, 30_000);
     return () => clearInterval(interval);
   }, [hasActiveLocationWork, refreshState]);
 

@@ -141,6 +141,7 @@ Use the native platform sans serif with a clear scale: 32px screen titles, 19px 
 - **Route sequence:** a fine track with numbered stops. The active trip may use the Navo gradient for its progress fill; other route previews use solid Sapphire.
 - **Settings options:** native-feeling selectable rows with a visible selected state and saved appearance preference.
 - **Saved alarms:** show the destination name, Rail/Bus/Place type, and an independent native switch. Tapping the card opens the alarm editor, where sound settings remain available. Hold a card to select it, tap more cards to extend the selection, then use the persistent Delete action and review the destinations before confirming. Selection replaces switches with checkboxes and supports Cancel, Select all, and Android Back.
+- **Active alarm distance:** a separate panel shows the viewed destination, rounded straight-line distance, location age, and a text status. Preserve the selected active target when another alarm is enabled. Clearly label retained readings as Last known when location is delayed or unavailable. The panel is hidden during bulk selection, and distance updates never announce on every GPS fix.
 - **Text field:** native text input with a quiet underline and readable placeholder.
 
 ## Native behavior

@@ -1,36 +1,47 @@
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Location from 'expo-location';
+import { Location as LocationSession } from 'expo-location/next';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
-import { evaluateLocationFix } from '../domain/trip-engine';
-import { evaluateDestinationAlarmFix } from '../domain/destination-alarm';
+import { processLocationBatch } from '../domain/location-processing';
+import { getLocationSamplingPolicy, type LocationSamplingPolicy } from '../domain/location-sampling';
+import { hasValidCoordinates } from '../domain/location-quality';
 import type { DestinationAlarmEvent, LocationFix, TripEvent } from '../domain/models';
 import { getAlarmTone } from '../domain/alarm-tones';
-import { readAppState, updateAppState } from './storage';
-import { requestAlarmPermissions } from './alarm-permissions';
+import { readAppState, updateAppState, type StoredAppState } from './storage';
+import { permissionHelpText, readAlarmPermissions, requestAlarmPermissions } from './alarm-permissions';
 import { deliverAlarmNotification, dismissAlarmNotification } from './alarm-notification-delivery';
+import { publishLiveLocation, setTrackingProblem } from '../state/live-location';
 
 export const LOCATION_TASK_NAME = 'navo-trip-location-v1';
+const RELAX_PROFILE_AFTER_MS = 60_000;
+let reconcileQueue: Promise<void> = Promise.resolve();
+let relaxation: { key: string; since: number } | null = null;
+let relaxationTimer: ReturnType<typeof setTimeout> | null = null;
+let latestSpeedMps: number | null = null;
+const deliveries = new Map<string, Promise<void>>();
+
+function clearRelaxation(): void {
+  if (relaxationTimer !== null) clearTimeout(relaxationTimer);
+  relaxationTimer = null;
+  relaxation = null;
+}
+
+function hasLocationWork(state: StoredAppState): boolean {
+  const mappedTrip = state.activeTrip?.status === 'active' && state.activeRoute?.coordinateStatus === 'complete'
+    && state.activeRoute.stops.every((stop) => stop.latitude !== undefined && stop.longitude !== undefined
+      && hasValidCoordinates({ latitude: stop.latitude, longitude: stop.longitude }));
+  return Boolean(mappedTrip || state.destinationAlarms.some((alarm) => alarm.enabled));
+}
 
 async function deliverEvent(item: TripEvent): Promise<void> {
-  const isDestination = item.type === 'destination-arrived';
-  const title = isDestination
-    ? 'Your stop is here'
-    : item.type === 'possible-wrong-direction'
-      ? 'Check your direction'
-      : item.type === 'route-deviation'
-        ? 'Check your route'
-        : item.type === 'approaching'
-          ? 'Approaching stop'
-          : 'Stop update';
+  const title = item.type === 'destination-arrived' ? 'Your stop is here'
+    : item.type === 'possible-wrong-direction' ? 'Check your direction'
+      : item.type === 'route-deviation' ? 'Check your route'
+        : item.type === 'approaching' ? 'Approaching stop' : 'Stop update';
   await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body: item.message,
-      sound: true,
-      data: { eventId: item.id },
-      ...(Platform.OS === 'android' ? { channelId: 'navo-trip' } : {}),
-    },
+    content: { title, body: item.message, sound: true, data: { eventId: item.id },
+      ...(Platform.OS === 'android' ? { channelId: 'navo-trip' } : {}) },
     trigger: null,
   });
 }
@@ -42,130 +53,190 @@ async function deliverDestinationAlarmEvent(event: DestinationAlarmEvent): Promi
   if (!alarm || !destination || alarm.sessionId !== event.sessionId || alarm.pendingEvent?.id !== event.id) return;
   const tone = getAlarmTone(alarm.ringtoneId, state.importedAlarmSounds);
   const notificationIdentifier = await deliverAlarmNotification(event, tone);
-
   const updated = await updateAppState((current) => {
     const currentAlarm = current.destinationAlarms.find((item) => item.id === event.alarmId);
     if (!currentAlarm || currentAlarm.sessionId !== event.sessionId || currentAlarm.pendingEvent?.id !== event.id) return current;
-    return {
-      ...current,
-      destinationAlarms: current.destinationAlarms.map((item) => item.id === event.alarmId
-        ? { ...item, pendingEvent: null, notificationIdentifier }
-        : item),
-    };
+    return { ...current, destinationAlarms: current.destinationAlarms.map((item) => item.id === event.alarmId
+      ? { ...item, pendingEvent: null, notificationIdentifier } : item) };
   });
-  const stillBelongsToSession = updated.destinationAlarms.some((item) => item.id === event.alarmId
-    && item.sessionId === event.sessionId
-    && item.notificationIdentifier === notificationIdentifier);
-  if (!stillBelongsToSession) {
+  if (!updated.destinationAlarms.some((item) => item.id === event.alarmId
+    && item.sessionId === event.sessionId && item.notificationIdentifier === notificationIdentifier)) {
     await dismissAlarmNotification(notificationIdentifier);
   }
 }
 
-export async function deliverPendingDestinationAlarmEvents(): Promise<void> {
-  const state = await readAppState();
-  for (const alarm of state.destinationAlarms) {
-    if (alarm.pendingEvent) await deliverDestinationAlarmEvent(alarm.pendingEvent);
-  }
+function deliverOnce(event: DestinationAlarmEvent): Promise<void> {
+  const existing = deliveries.get(event.id);
+  if (existing) return existing;
+  const delivery = deliverDestinationAlarmEvent(event).finally(() => { deliveries.delete(event.id); });
+  deliveries.set(event.id, delivery);
+  return delivery;
 }
 
-async function hasLocationWork(): Promise<boolean> {
+export async function deliverPendingDestinationAlarmEvents(): Promise<void> {
   const state = await readAppState();
-  return state.activeTrip?.status === 'active' || state.destinationAlarms.some((alarm) => alarm.enabled);
+  // Failed events remain durable; one failed delivery must not block another.
+  await Promise.allSettled(state.destinationAlarms.flatMap((alarm) => alarm.pendingEvent ? [deliverOnce(alarm.pendingEvent)] : []));
+}
+
+function locationOptions(policy: LocationSamplingPolicy): Location.LocationTaskOptions {
+  return {
+    accuracy: policy.accuracy === 'high' ? Location.Accuracy.High : Location.Accuracy.Balanced,
+    distanceInterval: policy.distanceInterval,
+    ...(Platform.OS === 'android' ? { timeInterval: policy.timeInterval } : {}),
+    pausesUpdatesAutomatically: policy.pausesUpdatesAutomatically,
+    deferredUpdatesDistance: 0,
+    deferredUpdatesInterval: 0,
+    mayShowUserSettingsDialog: false,
+    ...(Platform.OS === 'ios' ? { showsBackgroundLocationIndicator: true } : {}),
+    // SDK 58's legacy foregroundService option forbids updating a task while
+    // backgrounded. Android uses the independent Expo background session below.
+  };
+}
+
+function optionsMatch(current: Record<string, unknown> | null, desired: Location.LocationTaskOptions): boolean {
+  if (!current) return false;
+  if (Platform.OS === 'android' && current.foregroundService) return false;
+  return Object.entries(desired).every(([key, value]) => current[key] === value);
+}
+
+async function stopTracking(running: boolean): Promise<void> {
+  clearRelaxation();
+  if (running) await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+  if (Platform.OS === 'android') await LocationSession.stopBackgroundSession();
+  latestSpeedMps = null;
+}
+
+async function reconcileTracking(): Promise<void> {
+  let state = await readAppState();
+  publishLiveLocation(state);
+  const running = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+  if (!hasLocationWork(state)) {
+    await stopTracking(running);
+    setTrackingProblem(null);
+    return;
+  }
+  const permissions = await readAlarmPermissions();
+  if (!permissions.ready) {
+    await stopTracking(running);
+    setTrackingProblem(permissionHelpText(permissions));
+    return;
+  }
+  if (!await Location.hasServicesEnabledAsync()) {
+    await stopTracking(running);
+    setTrackingProblem('Location services are off. Turn on location in your phone settings.');
+    return;
+  }
+  // Permissions/native calls can yield while a rider edits or deletes an alarm.
+  state = await readAppState();
+  if (!hasLocationWork(state)) {
+    await stopTracking(running);
+    setTrackingProblem(null);
+    return;
+  }
+  if (Platform.OS === 'android' && !LocationSession.getBackgroundSessionStatus().unthrottled) {
+    if (AppState.currentState !== 'active') {
+      // Do not dismantle a pre-upgrade legacy service during a headless wake.
+      setTrackingProblem('Open Navo to resume reliable background location checks.');
+      return;
+    }
+    await LocationSession.ensureBackgroundSessionStarted({
+      notificationTitle: 'Navo location check is active',
+      notificationBody: 'Navo checks your active destination alarm or route trip.',
+      notificationColor: 0x0869A8,
+      stopOnTaskRemoved: true,
+    });
+  }
+  const policy = getLocationSamplingPolicy(state, Date.now(), latestSpeedMps);
+  const desired = locationOptions(policy);
+  const registeredOptions: unknown = running ? await TaskManager.getTaskOptionsAsync(LOCATION_TASK_NAME) : null;
+  const current = registeredOptions && typeof registeredOptions === 'object'
+    ? registeredOptions as Record<string, unknown> : null;
+  if (running && optionsMatch(current, desired)) {
+    clearRelaxation();
+    setTrackingProblem(null);
+    return;
+  }
+  const moreDemanding = !current || Boolean(current.foregroundService) || Number(current.accuracy) < Number(desired.accuracy)
+    || Number(current.distanceInterval) > policy.distanceInterval
+    || (Platform.OS === 'android' && Number(current.timeInterval) > policy.timeInterval)
+    || (current.pausesUpdatesAutomatically === true && !policy.pausesUpdatesAutomatically);
+  if (running && !moreDemanding && policy.profile !== 'departure') {
+    const key = JSON.stringify(desired);
+    const now = Date.now();
+    if (relaxation?.key !== key) {
+      clearRelaxation();
+      relaxation = { key, since: now };
+    }
+    if (now - relaxation.since < RELAX_PROFILE_AFTER_MS) {
+      if (relaxationTimer === null) relaxationTimer = setTimeout(() => {
+        relaxationTimer = null;
+        void reconcileBackgroundLocation().catch(() => undefined);
+      }, RELAX_PROFILE_AFTER_MS - (now - relaxation.since));
+      setTrackingProblem(null);
+      return;
+    }
+  }
+  // Keep one registered task; Android's independent session remains promoted
+  // while Expo reapplies its GPS request. iOS changes the manager in place.
+  await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, desired);
+  clearRelaxation();
+  setTrackingProblem(null);
+}
+
+/** Serializes native registration changes against the latest saved workload. */
+export function reconcileBackgroundLocation(): Promise<void> {
+  const next = reconcileQueue.then(reconcileTracking);
+  reconcileQueue = next.catch(() => undefined);
+  return next.catch((error: unknown) => {
+    setTrackingProblem(error instanceof Error ? error.message : 'Location tracking is unavailable. Reopen Navo to try again.');
+    throw error;
+  });
 }
 
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
-    await updateAppState((state) => ({ ...state, locationProblem: error.message }));
+    const updated = await updateAppState((state) => state.locationProblem === error.message ? state : { ...state, locationProblem: error.message }, 'location');
+    publishLiveLocation(updated);
+    await deliverPendingDestinationAlarmEvents();
+    await reconcileBackgroundLocation().catch(() => undefined);
     return;
   }
-  const locations = (data as { locations?: Location.LocationObject[] } | undefined)?.locations;
-  const location = locations?.[locations.length - 1];
-  if (!location) return;
-
-  const fix: LocationFix = {
-    latitude: location.coords.latitude,
-    longitude: location.coords.longitude,
-    accuracyM: location.coords.accuracy,
-    timestamp: location.timestamp,
-  };
+  const locations = (data as { locations?: Location.LocationObject[] } | undefined)?.locations ?? [];
+  const fixes: LocationFix[] = locations.filter((location) => location?.coords).map((location) => ({
+    latitude: location.coords.latitude, longitude: location.coords.longitude,
+    accuracyM: location.coords.accuracy, timestamp: location.timestamp, speedMps: location.coords.speed,
+  }));
   let tripEvents: TripEvent[] = [];
-  let destinationEvents: DestinationAlarmEvent[] = [];
-  await updateAppState((state) => {
-    if (state.lastLocationAt !== null && fix.timestamp <= state.lastLocationAt) return state;
-    const tripResult = state.activeTrip && state.activeRoute
-      ? evaluateLocationFix(state.activeRoute, state.activeTrip, fix, state.settings.approachRadiusM)
-      : null;
-    tripEvents = tripResult?.events ?? [];
-    destinationEvents = [];
-    const nextAlarms = state.destinationAlarms.map((alarm) => {
-      if (!alarm.enabled) return alarm;
-      const destination = state.destinations.find((item) => item.id === alarm.destinationId);
-      if (!destination) return { ...alarm, enabled: false, watchState: 'off' as const, sessionId: null };
-      const evaluated = evaluateDestinationAlarmFix(destination, alarm, fix);
-      if (evaluated.event) destinationEvents.push(evaluated.event);
-      return evaluated.alarm;
-    });
-    const advice = tripEvents.find((item) => item.type === 'possible-wrong-direction' || item.type === 'route-deviation');
-    return {
-      ...state,
-      activeTrip: tripResult?.trip ?? state.activeTrip,
-      destinationAlarms: nextAlarms,
-      lastLocationAt: fix.timestamp,
-      lastLocation: { latitude: fix.latitude, longitude: fix.longitude },
-      lastLocationAccuracyM: fix.accuracyM,
-      lastTripNotice: destinationEvents[0]?.message ?? advice?.message ?? state.lastTripNotice,
-      locationProblem: fix.accuracyM === null || fix.accuracyM > 80
-        ? 'Waiting for a more accurate GPS fix. Keep Navo open if you need to confirm your progress.'
-        : tripResult?.ignoredReason === 'unmapped-stop'
-          ? 'A stop on this route has no location point. Use manual stop confirmation.'
-          : null,
-    };
-  });
-
-  for (const item of tripEvents) await deliverEvent(item);
-  for (const item of destinationEvents) await deliverDestinationAlarmEvent(item);
-  if (!await hasLocationWork() && await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME)) {
-    await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-  }
+  const updated = fixes.length > 0 ? await updateAppState((state) => {
+    const result = processLocationBatch(state, fixes, Date.now());
+    tripEvents = result.tripEvents;
+    return result.state;
+  }, 'location') : await readAppState();
+  const newest = fixes.find((fix) => fix.timestamp === updated.lastLocationAt);
+  if (newest && Number.isFinite(newest.speedMps) && newest.speedMps! >= 0) latestSpeedMps = newest.speedMps!;
+  publishLiveLocation(updated);
+  await Promise.allSettled(tripEvents.map(deliverEvent));
+  await deliverPendingDestinationAlarmEvents();
+  await reconcileBackgroundLocation().catch(() => undefined);
 });
 
-async function startLocationUpdates(settings: { updateDistanceM: number; updateIntervalMs: number }): Promise<void> {
-  if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME)) return;
+export async function beginBackgroundLocation(_settings: { updateDistanceM: number; updateIntervalMs: number }): Promise<void> {
   const permissions = await requestAlarmPermissions();
-  if (!permissions.notifications) throw new Error('Allow notifications to receive stop alerts. You can still track progress manually.');
-  if (!permissions.foreground) throw new Error('Allow location while using Navo to start location tracking. You can still track progress manually.');
-  if (!permissions.background) throw new Error('Background location is off. The trip can continue in manual mode, but Navo cannot check stops while closed.');
-
-  const taskOptions: Location.LocationTaskOptions = {
-    accuracy: Location.Accuracy.Balanced,
-    timeInterval: settings.updateIntervalMs,
-    distanceInterval: settings.updateDistanceM,
-    pausesUpdatesAutomatically: true,
-    ...(Platform.OS === 'ios' ? { showsBackgroundLocationIndicator: true } : {}),
-    ...(Platform.OS === 'android' ? {
-      foregroundService: {
-        notificationTitle: 'Navo location check is active',
-        notificationBody: 'Navo checks your active destination alarm or route trip.',
-        notificationColor: '#0869A8',
-      },
-    } : {}),
-  };
-  await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, taskOptions);
+  if (!permissions.ready) throw new Error(permissionHelpText(permissions));
+  await reconcileBackgroundLocation();
 }
 
-export async function beginBackgroundLocation(settings: { updateDistanceM: number; updateIntervalMs: number }): Promise<void> {
-  if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME)) return;
-  await startLocationUpdates(settings);
+export function stopBackgroundLocationIfIdle(): Promise<void> {
+  return reconcileBackgroundLocation();
 }
 
-export async function endBackgroundLocation(): Promise<void> {
-  if (await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME)) {
-    await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-  }
-}
-
-export async function stopBackgroundLocationIfIdle(): Promise<void> {
-  if (!await hasLocationWork()) await endBackgroundLocation();
+export function endBackgroundLocation(): Promise<void> {
+  const next = reconcileQueue.then(async () => {
+    await stopTracking(await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME));
+  });
+  reconcileQueue = next.catch(() => undefined);
+  return next;
 }
 
 export async function recordCurrentStop(): Promise<{ latitude: number; longitude: number }> {

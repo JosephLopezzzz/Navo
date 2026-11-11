@@ -34,7 +34,7 @@ export interface Trip {
   offRouteCount: number;
   routeDeviationSent: boolean;
 }
-export interface LocationFix { latitude: number; longitude: number; accuracyM: number | null; timestamp: number }
+export interface LocationFix { latitude: number; longitude: number; accuracyM: number | null; timestamp: number; speedMps?: number | null }
 export type TripEventType = 'approaching' | 'stop-arrived' | 'destination-arrived' | 'possible-wrong-direction' | 'route-deviation' | 'location-quality';
 export interface TripEvent { id: string; type: TripEventType; stopName?: string; message: string }
 export interface EvaluationResult {
