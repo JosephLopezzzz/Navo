@@ -34,7 +34,9 @@ The source includes destination search and map selection through TomTom, saved d
 
 Release gate: confirm with TomTom that the applicable API and map license permits storing provider-derived destination coordinates for a rider's saved alarms. [Public third-party terms](https://www.tomtom.com/en-gb/legal/third-party-product-terms/) restrict creating certain digital map databases and define one to include latitude/longitude of individual addresses; this project has not received license-specific confirmation.
 
-Bundled rail data contains names and station order, but no rail station coordinates. Bus coordinates are recorded by the rider and are not independently verified. Route direction and deviation advice use coarse straight-line checks. There is no live transit feed, live operating status or ETA. Android's ongoing monitoring notification displays the active destination and rounded GPS distance; actual lock-screen visibility and rendering depend on the phone's notification settings.
+Rail destination selection uses a separate catalog of 51 station points sourced from Wikidata (CC0), with line-specific names, aliases, source links, and review dates. Selecting a station opens a fixed coordinate marker for confirmation; map movements do not change that station. Local station search and point selection work offline, while map imagery requires a key and network or cached tiles. These are sourced station points, not independently surveyed entrance or platform locations. Saved alarms retain their coordinate snapshot and station provenance; loading an older alarm does not move it to a newer catalog point. See [rail station data](docs/RAIL_STATIONS.md).
+
+The separate journey route data contains names and station order without coordinates, so rail trips retain manual stop confirmation. Bus coordinates are recorded by the rider and are not independently verified. Route direction and deviation advice use coarse straight-line checks. There is no live transit feed, live operating status or ETA. Android's ongoing monitoring notification displays the active destination and rounded GPS distance; actual lock-screen visibility and rendering depend on the phone's notification settings.
 
 TomTom search and map requests require a key and network access while choosing a place. The EXPO_PUBLIC_TOMTOM_API_KEY value is included in the client build and must be treated as public client configuration. Search terms and map tile requests go to TomTom. The source does not configure a Navo backend or upload GPS samples used by alarms.
 
@@ -48,7 +50,7 @@ The name is Navo. The approved mark is the supplied transparent Gradient Navigat
 
 The repository contains editable Navo marks and generated platform icons under assets, with visual tokens documented in DESIGN.md. The source contains unit tests for route and destination-alarm rules, but no recorded physical-device acceptance or measured alert reliability.
 
-The app bundles rail station names and order and includes rider-saved bus coordinates. No independently verified rail stop coordinates or live transit source are included. TomTom is used for place search and map tiles, not for live transit service information.
+The app bundles rail station names, order, and a separate sourced station-point catalog for destination alarms, plus rider-saved bus coordinates. Station points have source-level identity and line checks but no onsite survey acceptance. No live transit source is included. TomTom supplies general place search and map tiles.
 
 ## Product principles
 

@@ -3,6 +3,7 @@ import * as SQLite from 'expo-sqlite';
 import type { DestinationAlarm, DestinationKind, SavedDestination, TransitRoute, Trip } from '../domain/models';
 import { DEFAULT_ALARM_TONE_ID, isAlarmToneId } from '../domain/alarm-tones';
 import { normalizeImportedSounds, type ImportedAlarmSound } from '../domain/imported-alarm-sounds';
+import { normalizeRailDestinationMetadata } from '../domain/rail-destination';
 import { publishAppStateChange, type StateChangeSource } from '../state/app-state-events';
 import { publishLiveLocation } from '../state/live-location';
 
@@ -94,7 +95,7 @@ export function normalizeAppState(value: unknown): StoredAppState {
     activeTrip: parsed.activeTrip ?? null,
     activeRoute: parsed.activeRoute ?? null,
     customBusRoutes: Array.isArray(parsed.customBusRoutes) ? parsed.customBusRoutes : [],
-    destinations: Array.isArray(parsed.destinations) ? parsed.destinations : [],
+    destinations: Array.isArray(parsed.destinations) ? parsed.destinations.map(normalizeRailDestinationMetadata) : [],
     destinationAlarms: Array.isArray(parsed.destinationAlarms)
       ? parsed.destinationAlarms.map((alarm) => ({
         ...alarm,
@@ -155,31 +156,37 @@ function parseStoredValue(raw: string | null): StoredAppState {
 }
 
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
+let stateOperationQueue: Promise<void> = Promise.resolve();
+
+function serializeStateOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const pending = stateOperationQueue.then(operation, operation);
+  stateOperationQueue = pending.then(() => undefined, () => undefined);
+  return pending;
+}
 
 async function openStateDatabase(): Promise<SQLite.SQLiteDatabase> {
   const database = await SQLite.openDatabaseAsync(DATABASE_NAME);
-  await database.execAsync(`
+  await withDatabaseRetry(() => database.execAsync(`
+    PRAGMA busy_timeout = 1000;
     PRAGMA journal_mode = WAL;
-    PRAGMA busy_timeout = 5000;
     CREATE TABLE IF NOT EXISTS app_state (
       id INTEGER PRIMARY KEY NOT NULL CHECK (id = 1),
       value TEXT NOT NULL
     );
-  `);
-  await withDatabaseRetry(() => database.withExclusiveTransactionAsync(async (transaction) => {
-    const row = await transaction.getFirstAsync<{ value: string }>(
-      'SELECT value FROM app_state WHERE id = ?',
-      STATE_ROW_ID,
-    );
-    if (row) return;
-
+  `));
+  const row = await withDatabaseRetry(() => database.getFirstAsync<{ value: string }>(
+    'SELECT value FROM app_state WHERE id = ?',
+    STATE_ROW_ID,
+  ));
+  if (!row) {
+    // Read legacy storage before writing so it never holds a SQLite transaction open.
     const legacy = parseStoredValue(await AsyncStorage.getItem(STORAGE_KEY));
-    await transaction.runAsync(
+    await withDatabaseRetry(() => database.runAsync(
       'INSERT OR IGNORE INTO app_state (id, value) VALUES (?, ?)',
       STATE_ROW_ID,
       JSON.stringify(legacy),
-    );
-  }));
+    ));
+  }
   return database;
 }
 
@@ -194,60 +201,73 @@ function getDatabase(): Promise<SQLite.SQLiteDatabase> {
 }
 
 async function withDatabaseRetry<T>(operation: () => Promise<T>): Promise<T> {
+  const retryDelaysMs = [80, 160, 320, 640, 1000];
   for (let attempt = 0; ; attempt += 1) {
     try {
       return await operation();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!message.toLowerCase().includes('database is locked') || attempt >= 2) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 80 * (attempt + 1)));
+      const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      const code = error && typeof error === 'object' && 'code' in error
+        ? (error as { code?: unknown }).code
+        : undefined;
+      const isDatabaseBusy = message.includes('database is locked') || message.includes('database is busy')
+        || code === 5 || code === 'SQLITE_BUSY';
+      const delay = retryDelaysMs[attempt];
+      if (!isDatabaseBusy || delay === undefined) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 }
 
-export async function readAppState(): Promise<StoredAppState> {
-  const database = await getDatabase();
-  const row = await database.getFirstAsync<{ value: string }>(
-    'SELECT value FROM app_state WHERE id = ?',
-    STATE_ROW_ID,
-  );
-  return parseStoredValue(row?.value ?? null);
+export function readAppState(): Promise<StoredAppState> {
+  // Serialize reads too: Expo's transaction helper runs on this same connection,
+  // so another query on it would otherwise join the in-flight transaction.
+  return serializeStateOperation(async () => {
+    const database = await getDatabase();
+    const row = await withDatabaseRetry(() => database.getFirstAsync<{ value: string }>(
+      'SELECT value FROM app_state WHERE id = ?',
+      STATE_ROW_ID,
+    ));
+    return parseStoredValue(row?.value ?? null);
+  });
 }
 
-export async function updateAppState(
+export function updateAppState(
   mutate: (current: StoredAppState) => StoredAppState,
   source: StateChangeSource = 'mutation',
 ): Promise<StoredAppState> {
-  const database = await getDatabase();
-  let updated: StoredAppState | null = null;
-  let changed = false;
-  let resetLiveLocation = false;
-  await withDatabaseRetry(() => database.withExclusiveTransactionAsync(async (transaction) => {
-    const row = await transaction.getFirstAsync<{ value: string }>(
-      'SELECT value FROM app_state WHERE id = ?',
-      STATE_ROW_ID,
-    );
-    const current = parseStoredValue(row?.value ?? null);
-    const next = mutate(current);
-    changed = next !== current;
-    resetLiveLocation = source === 'mutation' && current.lastLocation !== null
-      && next.lastLocation === null && next.lastLocationAt === null;
-    // Duplicate/out-of-order location callbacks must not rewrite the state blob.
-    if (next === current) {
-      updated = current;
-      return;
+  return serializeStateOperation(async () => {
+    const database = await getDatabase();
+    let updated: StoredAppState | null = null;
+    let changed = false;
+    let resetLiveLocation = false;
+    await withDatabaseRetry(() => database.withTransactionAsync(async () => {
+      const row = await database.getFirstAsync<{ value: string }>(
+        'SELECT value FROM app_state WHERE id = ?',
+        STATE_ROW_ID,
+      );
+      const current = parseStoredValue(row?.value ?? null);
+      const next = mutate(current);
+      changed = next !== current;
+      resetLiveLocation = source === 'mutation' && current.lastLocation !== null
+        && next.lastLocation === null && next.lastLocationAt === null;
+      // Duplicate/out-of-order location callbacks must not rewrite the state blob.
+      if (next === current) {
+        updated = current;
+        return;
+      }
+      updated = normalizeAppState(next);
+      await database.runAsync(
+        'INSERT INTO app_state (id, value) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value',
+        STATE_ROW_ID,
+        JSON.stringify(updated),
+      );
+    }));
+    if (!updated) throw new Error('Navo could not save the latest device state.');
+    if (changed) {
+      publishLiveLocation(updated, { reset: resetLiveLocation });
+      publishAppStateChange(updated, source);
     }
-    updated = normalizeAppState(next);
-    await transaction.runAsync(
-      'INSERT INTO app_state (id, value) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value',
-      STATE_ROW_ID,
-      JSON.stringify(updated),
-    );
-  }));
-  if (!updated) throw new Error('Navo could not save the latest device state.');
-  if (changed) {
-    publishLiveLocation(updated, { reset: resetLiveLocation });
-    publishAppStateChange(updated, source);
-  }
-  return updated;
+    return updated;
+  });
 }

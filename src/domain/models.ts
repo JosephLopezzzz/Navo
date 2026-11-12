@@ -47,7 +47,14 @@ export interface EvaluationResult {
 }
 
 export type DestinationKind = 'rail-station' | 'bus-dropoff' | 'place';
-export type DestinationSource = 'map-pin' | 'tomtom';
+export type DestinationSource = 'map-pin' | 'tomtom' | 'rail-catalog';
+export interface RailStationReference {
+  stationId: string;
+  lineId: 'lrt-1' | 'lrt-2' | 'mrt-3';
+  catalogVersion: string;
+  coordinateSourceUrl: string;
+  reviewedAt: string;
+}
 export interface SavedDestination {
   id: string;
   name: string;
@@ -57,6 +64,7 @@ export interface SavedDestination {
   kind: DestinationKind;
   source: DestinationSource;
   providerPlaceId?: string;
+  railStation?: RailStationReference;
   createdAt: string;
   updatedAt: string;
 }

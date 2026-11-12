@@ -1,13 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { armDestinationAlarm, createDestinationAlarm, disarmDestinationAlarm } from '../src/domain/destination-alarm';
 import type { StoredAppState } from '../src/services/storage';
+import { buildBusRoute, upsertBusRoute } from '../src/domain/bus-routes';
+import { confirmTripStop, startTripState } from '../src/domain/trip-actions';
+import { makeJourneyRoute, railLines } from '../src/data/routes';
 
 const sqlite = vi.hoisted(() => ({
   raw: null as string | null,
   staged: null as string | null,
   inTransaction: false,
   failCommit: false,
-  open: vi.fn(), exec: vi.fn(), getRow: vi.fn(), run: vi.fn(), exclusive: vi.fn(), legacy: vi.fn(),
+  open: vi.fn(), exec: vi.fn(), getRow: vi.fn(), run: vi.fn(), transaction: vi.fn(), legacy: vi.fn(),
 }));
 
 vi.mock('expo-sqlite', () => ({ openDatabaseAsync: sqlite.open }));
@@ -58,14 +61,15 @@ beforeEach(() => {
     return value === null ? null : { value };
   });
   sqlite.run.mockImplementation(async (_sql: string, _id: number, value: string) => {
-    sqlite.staged = value;
+    if (sqlite.inTransaction) sqlite.staged = value;
+    else if (sqlite.raw === null) sqlite.raw = value;
     return { changes: 1 };
   });
-  sqlite.exclusive.mockImplementation(async (work: (transaction: { getFirstAsync: typeof sqlite.getRow; runAsync: typeof sqlite.run }) => Promise<void>) => {
+  sqlite.transaction.mockImplementation(async (work: () => Promise<void>) => {
     sqlite.inTransaction = true;
     sqlite.staged = sqlite.raw;
     try {
-      await work({ getFirstAsync: sqlite.getRow, runAsync: sqlite.run });
+      await work();
       if (sqlite.failCommit) throw new Error('Commit failed');
       sqlite.raw = sqlite.staged;
     } finally {
@@ -73,10 +77,61 @@ beforeEach(() => {
       sqlite.staged = null;
     }
   });
-  sqlite.open.mockResolvedValue({ execAsync: sqlite.exec, getFirstAsync: sqlite.getRow, withExclusiveTransactionAsync: sqlite.exclusive });
+  sqlite.open.mockResolvedValue({ execAsync: sqlite.exec, getFirstAsync: sqlite.getRow, runAsync: sqlite.run, withTransactionAsync: sqlite.transaction });
 });
 
 afterEach(() => { vi.useRealTimers(); });
+
+describe('persisted route workflows', () => {
+  it('serializes route appends and keeps a failed edit retryable without duplicate routes', async () => {
+    const modules = await loadStateModules();
+    const initial = savedState(modules.defaultAppState);
+    sqlite.raw = JSON.stringify(initial);
+    const stops = [{ id: 'a', name: 'Boarding' }, { id: 'b', name: 'Destination' }];
+    const first = buildBusRoute('bus-first', 'First route', stops);
+    const second = buildBusRoute('bus-second', 'Second route', stops);
+    await Promise.all([
+      modules.updateAppState((current) => upsertBusRoute(current, first, null)),
+      modules.updateAppState((current) => upsertBusRoute(current, second, null)),
+    ]);
+    expect((await modules.readAppState()).customBusRoutes.map((route) => route.id)).toEqual(['bus-first', 'bus-second']);
+
+    const edited = buildBusRoute(first.id, 'Edited route', [...stops].reverse());
+    sqlite.failCommit = true;
+    await expect(modules.updateAppState((current) => upsertBusRoute(current, edited, first))).rejects.toThrow('Commit failed');
+    expect((await modules.readAppState()).customBusRoutes[0]?.name).toBe('First route');
+    sqlite.failCommit = false;
+    await modules.updateAppState((current) => upsertBusRoute(current, edited, first));
+    await modules.updateAppState((current) => upsertBusRoute(current, edited, first));
+    const persisted = await modules.readAppState();
+    expect(persisted.customBusRoutes).toEqual([edited, second]);
+    expect(persisted.destinationAlarms).toEqual(initial.destinationAlarms);
+  });
+
+  it('persists one advance for simultaneous confirmations of the same rendered stop', async () => {
+    const modules = await loadStateModules();
+    const initial = savedState(modules.defaultAppState);
+    const journey = makeJourneyRoute(railLines[0]!, 0, 2)!;
+    const trip = {
+      id: 'manual-trip', routeId: journey.id, boardingIndex: 0, destinationIndex: 2,
+      lastConfirmedIndex: 0, alertMode: 'destination-only' as const,
+      startedAt: new Date(NOW).toISOString(), status: 'active' as const,
+      approachedStopIds: [], arrivedStopIds: [], movingAwayCount: 0,
+      directionAdvisorySent: false, offRouteCount: 0, routeDeviationSent: false,
+    };
+    sqlite.raw = JSON.stringify(initial);
+    await modules.updateAppState((current) => startTripState(current, journey, trip, null));
+    await Promise.all([
+      modules.updateAppState((current) => confirmTripStop(current, trip.id, 0).state),
+      modules.updateAppState((current) => confirmTripStop(current, trip.id, 0).state),
+    ]);
+    const persisted = await modules.readAppState();
+    expect(persisted.activeTrip?.lastConfirmedIndex).toBe(1);
+    expect(persisted.activeTrip?.arrivedStopIds).toEqual([journey.stops[1]!.id]);
+    expect(persisted.activeRoute?.coordinateStatus).toBe('missing');
+    expect(persisted.destinationAlarms).toEqual(initial.destinationAlarms);
+  });
+});
 
 describe('location state persistence and subscriptions', () => {
   it('does not issue an INSERT for a duplicate or out-of-order no-op reducer', async () => {

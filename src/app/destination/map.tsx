@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
-import { Camera, Map, type CameraRef, type MapRef, type StyleSpecification } from '@maplibre/maplibre-react-native';
+import { Camera, Map, Marker, type CameraRef, type MapRef, type StyleSpecification } from '@maplibre/maplibre-react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NavoPressable as Pressable } from '../../components/NavoPressable';
@@ -12,6 +12,7 @@ import { setPendingDestinationMapSelection, type DestinationMapSelection } from 
 import type { DestinationKind } from '../../domain/models';
 import { formatCoordinates } from '../../domain/coordinates';
 import { useNavoColors } from '../../theme/colors';
+import { getRailStation, RAIL_CATALOG_VERSION, type RailStation } from '../../data/rail-stations';
 
 const MANILA_CENTER: [number, number] = [120.9842, 14.5995];
 const MIN_MAP_ZOOM = 4;
@@ -19,6 +20,7 @@ const MAX_MAP_ZOOM = 19;
 const MAP_LOAD_TIMEOUT_MS = 15_000;
 
 type Coordinate = { latitude: number; longitude: number };
+type DestinationMapParams = { kind?: string; latitude?: string; longitude?: string; stationId?: string; railRequestId?: string };
 
 function validCoordinate(value: string | string[] | undefined, minimum: number, maximum: number): number | null {
   if (typeof value !== 'string' || value.trim() === '') return null;
@@ -46,12 +48,46 @@ async function getCurrentPositionQuickly(): Promise<Location.LocationObject> {
 
 export default function DestinationMapScreen() {
   const colors = useNavoColors();
+  const params = useLocalSearchParams<DestinationMapParams>();
+  const station = getRailStation(params.stationId);
+  if (params.stationId !== undefined && !station) {
+    return (
+      <SafeAreaView style={[styles.invalidStation, { backgroundColor: colors.background }]}>
+        <Feather name="alert-circle" size={28} color={colors.accent} />
+        <Text accessibilityRole="alert" style={[styles.unavailableTitle, { color: colors.ink }]}>Station unavailable</Text>
+        <Text style={[styles.unavailableCopy, { color: colors.muted }]}>Go back and choose the station again.</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.back()} style={[styles.confirmButton, styles.invalidBack, { backgroundColor: colors.accent }]}>
+          <Text style={[styles.confirmText, { color: colors.onAccent }]}>Back to stations</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
+  // A reused map route starts afresh for each station/request; old camera state cannot become the new destination.
+  return <DestinationMap key={`${params.stationId ?? 'pin'}:${params.railRequestId ?? ''}:${params.latitude ?? ''}:${params.longitude ?? ''}`} params={params} station={station} />;
+}
+
+function DestinationMap({ params, station }: { params: DestinationMapParams; station?: RailStation }) {
+  const colors = useNavoColors();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ kind?: string; latitude?: string; longitude?: string }>();
   const kind = kindFromParam(params.kind);
-  const initialLongitude = validCoordinate(params.longitude, -180, 180) ?? MANILA_CENTER[0];
-  const initialLatitude = validCoordinate(params.latitude, -90, 90) ?? MANILA_CENTER[1];
-  const initialZoom = params.latitude && params.longitude ? 16 : 13;
+  const initialLongitude = station?.longitude ?? validCoordinate(params.longitude, -180, 180) ?? MANILA_CENTER[0];
+  const initialLatitude = station?.latitude ?? validCoordinate(params.latitude, -90, 90) ?? MANILA_CENTER[1];
+  const initialZoom = station ? 17 : params.latitude && params.longitude ? 16 : 13;
+  const stationSelection: DestinationMapSelection | null = station ? {
+    latitude: station.latitude,
+    longitude: station.longitude,
+    name: /\bstation$/i.test(station.name) ? station.name : `${station.name} Station`,
+    subtitle: `${station.lineId.toUpperCase()} · ${station.city}`,
+    source: 'rail-catalog',
+    railStation: {
+      stationId: station.id,
+      lineId: station.lineId,
+      catalogVersion: RAIL_CATALOG_VERSION,
+      coordinateSourceUrl: station.sourceUrl,
+      reviewedAt: station.reviewedAt,
+    },
+    railRequestId: params.railRequestId,
+  } : null;
   const [center, setCenter] = useState<Coordinate>({ latitude: initialLatitude, longitude: initialLongitude });
   const [zoom, setZoom] = useState(initialZoom);
   const [selection, setSelection] = useState<DestinationMapSelection>({
@@ -76,17 +112,29 @@ export default function DestinationMapScreen() {
   const [recentering, setRecentering] = useState(false);
   const [addressLoading, setAddressLoading] = useState(false);
   const [addressProblem, setAddressProblem] = useState<string | null>(null);
+  const [sheetHeight, setSheetHeight] = useState(station ? 210 : 162);
   const mapRef = useRef<MapRef>(null);
   const cameraRef = useRef<CameraRef>(null);
   const zoomRef = useRef(initialZoom);
   const searchSessionId = useRef(createPlacesSearchSessionId());
   const searchController = useRef<AbortController | null>(null);
+  const confirming = useRef(false);
 
-  const selectedLatitude = selection.latitude;
-  const selectedLongitude = selection.longitude;
-  const selectionSource = selection.source;
+  // Catalog selection is derived from station identity, independent of the camera and reverse geocoding.
+  const displayedSelection = stationSelection ?? selection;
+  const selectedLatitude = displayedSelection.latitude;
+  const selectedLongitude = displayedSelection.longitude;
+  const selectionSource = displayedSelection.source;
+  const stationPadding = useMemo(() => ({ top: insets.top + 68, right: 50, bottom: sheetHeight + insets.bottom + 26, left: 50 }), [insets.top, insets.bottom, sheetHeight]);
   const mapInstanceKey = `${mapAttempt}-${colors.isDark ? 'dark' : 'light'}`;
   const loadedMapRef = useRef(loadedMap);
+  const stationLatitude = station?.latitude;
+  const stationLongitude = station?.longitude;
+
+  useEffect(() => {
+    if (stationLatitude === undefined || stationLongitude === undefined) return;
+    cameraRef.current?.jumpTo({ center: [stationLongitude, stationLatitude], zoom: 17, padding: stationPadding });
+  }, [stationLatitude, stationLongitude, stationPadding]);
 
   useEffect(() => {
     if (selectionSource !== 'map-pin' || !TOMTOM_API_KEY) return;
@@ -269,7 +317,7 @@ export default function DestinationMapScreen() {
     if (!event.nativeEvent.userInteraction) return;
     const [longitude, latitude] = event.nativeEvent.center;
     setCenter({ latitude, longitude });
-    setSelection({ latitude, longitude, name: 'Pinned location', subtitle: '', source: 'map-pin' });
+    if (!station) setSelection({ latitude, longitude, name: 'Pinned location', subtitle: '', source: 'map-pin' });
     setMapProblem(null);
     void mapRef.current?.getZoom().then((nextZoom) => {
       if (!Number.isFinite(nextZoom)) return;
@@ -292,7 +340,7 @@ export default function DestinationMapScreen() {
       const current = await getCurrentPositionQuickly();
       const next = { latitude: current.coords.latitude, longitude: current.coords.longitude };
       setCenter(next);
-      setSelection({ ...next, name: 'Pinned location', subtitle: '', source: 'map-pin' });
+      if (!station) setSelection({ ...next, name: 'Pinned location', subtitle: '', source: 'map-pin' });
       zoomRef.current = 16;
       setZoom(16);
       cameraRef.current?.easeTo({ center: [next.longitude, next.latitude], zoom: 16, duration: 450 });
@@ -306,6 +354,13 @@ export default function DestinationMapScreen() {
   };
 
   const confirmSelection = async () => {
+    if (confirming.current) return;
+    confirming.current = true;
+    if (stationSelection) {
+      setPendingDestinationMapSelection(stationSelection);
+      router.back();
+      return;
+    }
     let nextSelection = selection;
     if (selection.source === 'map-pin') {
       try {
@@ -341,7 +396,8 @@ export default function DestinationMapScreen() {
     router.back();
   };
 
-  const mapBottomOffset = Math.max(174, insets.bottom + 162);
+  const mapBottomOffset = Math.max(174, insets.bottom + (station ? sheetHeight + 12 : 162));
+  const confirmDisabled = !station && (!mapStyle || (selection.source === 'map-pin' && !mapReady));
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -350,7 +406,7 @@ export default function DestinationMapScreen() {
           <Map
             key={mapInstanceKey}
             ref={mapRef}
-            accessibilityLabel="Destination map. Move the map to place the pin."
+            accessibilityLabel={station ? `Station map. ${stationSelection?.name} stays selected when you move the map.` : 'Destination map. Move the map to place the pin.'}
             attribution
             attributionPosition={{ bottom: mapBottomOffset, right: 10 }}
             compass={false}
@@ -376,12 +432,23 @@ export default function DestinationMapScreen() {
           >
             <Camera
               ref={cameraRef}
-              initialViewState={{ center: [center.longitude, center.latitude], zoom }}
+              initialViewState={{ center: station ? [station.longitude, station.latitude] : [center.longitude, center.latitude], zoom: station ? 17 : zoom, ...(station ? { padding: stationPadding } : {}) }}
               minZoom={MIN_MAP_ZOOM}
               maxZoom={MAX_MAP_ZOOM}
             />
+            {station && (
+              <Marker id={station.id} lngLat={[station.longitude, station.latitude]} anchor="bottom" offset={[0, 4]}>
+                <View pointerEvents="none" accessible accessibilityLabel={`${stationSelection?.name}, selected station point`} style={styles.stationMarker}>
+                  <Svg width={48} height={48} viewBox="0 0 24 24">
+                    <Path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7Z" fill={colors.accent} stroke={colors.surface} strokeWidth={0.65} />
+                    <Circle cx={12} cy={9} r={3.3} fill={colors.surface} />
+                    <Circle cx={12} cy={9} r={1.5} fill={colors.aqua} />
+                  </Svg>
+                </View>
+              </Marker>
+            )}
           </Map>
-          <View pointerEvents="none" style={styles.pinLayer}>
+          {!station && <View pointerEvents="none" style={styles.pinLayer}>
             <View style={styles.pinMarker}>
               <Svg width={48} height={48} viewBox="0 0 24 24" accessibilityLabel="Selected map point">
                 <Path
@@ -394,13 +461,13 @@ export default function DestinationMapScreen() {
                 <Circle cx={12} cy={9} r={1.5} fill={colors.aqua} />
               </Svg>
             </View>
-          </View>
+          </View>}
         </>
       ) : (
         <View style={styles.mapUnavailable}>
           <Feather name="map" size={26} color={colors.accent} />
-          <Text style={[styles.unavailableTitle, { color: colors.ink }]}>Map unavailable</Text>
-          <Text style={[styles.unavailableCopy, { color: colors.muted }]}>Add a TomTom key to search places and choose a map point.</Text>
+          <Text style={[styles.unavailableTitle, { color: colors.ink }]}>{station ? 'Station location ready' : 'Map unavailable'}</Text>
+          <Text style={[styles.unavailableCopy, { color: colors.muted }]}>{station ? 'Map imagery is unavailable. You can still confirm the station point below.' : 'Add a TomTom key to search places and choose a map point.'}</Text>
         </View>
       )}
 
@@ -410,7 +477,12 @@ export default function DestinationMapScreen() {
             <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Back to destination" onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.surface }]}>
               <Feather name="arrow-left" size={20} color={colors.ink} />
             </Pressable>
-            <View style={[styles.searchField, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+            {station ? (
+              <View style={[styles.searchField, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+                <Feather name="navigation" size={17} color={colors.accent} />
+                <Text style={[styles.sheetTitle, { color: colors.ink }]}>Confirm station</Text>
+              </View>
+            ) : <View style={[styles.searchField, { backgroundColor: colors.surface, borderColor: colors.line }]}>
               <Feather name="search" size={17} color={colors.muted} />
               <TextInput
                 accessibilityLabel="Search places on map"
@@ -429,7 +501,7 @@ export default function DestinationMapScreen() {
                   <Feather name="x-circle" size={17} color={colors.quiet} />
                 </Pressable>
               )}
-            </View>
+            </View>}
           </View>
           {suggestions.length > 0 && (
             <View style={[styles.suggestionList, { backgroundColor: colors.surface, borderColor: colors.line }]}>
@@ -457,6 +529,13 @@ export default function DestinationMapScreen() {
           )}
           {mapStyle && (
             <View style={styles.mapControls}>
+              {station && <Pressable motion="compact" accessibilityRole="button" accessibilityLabel={`Focus ${stationSelection?.name}`} onPress={() => {
+                zoomRef.current = 17;
+                setZoom(17);
+                cameraRef.current?.easeTo({ center: [station.longitude, station.latitude], zoom: 17, padding: stationPadding, duration: 350 });
+              }} style={[styles.mapControlButton, { backgroundColor: colors.surface }]}>
+                <Feather name="navigation" size={18} color={colors.accent} />
+              </Pressable>}
               <Pressable motion="compact" accessibilityRole="button" accessibilityLabel="Recenter on my location" onPress={() => void recenter()} disabled={recentering} style={[styles.mapControlButton, { backgroundColor: colors.surface }]}>
                 {recentering ? <ActivityIndicator color={colors.accent} /> : <Feather name="crosshair" size={18} color={colors.accent} />}
               </Pressable>
@@ -486,21 +565,37 @@ export default function DestinationMapScreen() {
           </Text>
         )}
 
-        <View style={[styles.selectionSheet, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+        <View onLayout={station ? (event) => { setSheetHeight(event.nativeEvent.layout.height); } : undefined} style={[styles.selectionSheet, { backgroundColor: colors.surface, borderColor: colors.line }]}>
           <View style={styles.sheetHeading}>
             <View style={[styles.sheetIcon, { backgroundColor: colors.accentSoft }]}>
               <Feather name="map-pin" size={17} color={colors.accent} />
             </View>
             <View style={styles.sheetCopy}>
-              <Text numberOfLines={2} style={[styles.sheetTitle, { color: colors.ink }]}>{selection.name || 'Pinned location'}</Text>
+              <Text numberOfLines={2} style={[styles.sheetTitle, { color: colors.ink }]}>{displayedSelection.name || 'Pinned location'}</Text>
               <Text numberOfLines={1} style={[styles.sheetSubtitle, { color: colors.muted }]}>
-                {selection.subtitle || (addressLoading ? 'Finding a nearby place or address…' : selection.source === 'tomtom' ? 'Place selected from search' : 'Move the map to place the pin')}
+                {displayedSelection.subtitle || (addressLoading ? 'Finding a nearby place or address…' : selection.source === 'tomtom' ? 'Place selected from search' : 'Move the map to place the pin')}
               </Text>
             </View>
             {addressLoading ? <ActivityIndicator accessibilityLabel="Looking up the pinned address" color={colors.accent} /> : null}
           </View>
+          {station && <>
+            <Text style={[styles.mapProblem, { color: colors.muted }]}>The marker stays on this station while you explore the map.</Text>
+            <View style={styles.stationSourceRow}>
+              <Link href={station.sourceUrl} asChild>
+                <Pressable accessibilityRole="link" style={styles.stationSourceLink}>
+                  <Text style={[styles.stationSourceText, { color: colors.accent }]}>{station.sourceLabel}</Text>
+                  <Feather name="external-link" size={12} color={colors.accent} />
+                </Pressable>
+              </Link>
+              <Link href="https://creativecommons.org/publicdomain/zero/1.0/" asChild>
+                <Pressable accessibilityRole="link" accessibilityLabel="Coordinate license: CC0 1.0" style={styles.stationLicenseLink}>
+                  <Text style={[styles.stationSourceText, { color: colors.accent }]}>CC0</Text>
+                </Pressable>
+              </Link>
+            </View>
+          </>}
           {addressProblem ? <Text style={[styles.mapProblem, { color: colors.muted }]}>{addressProblem}</Text> : null}
-          {(mapProblem || !mapStyle) && <Text accessibilityRole="alert" style={[styles.mapProblem, { color: colors.danger }]}>{mapProblem ?? 'Map key needed to choose a point.'}</Text>}
+          {(mapProblem || (!mapStyle && !station)) && <Text accessibilityRole="alert" style={[styles.mapProblem, { color: colors.danger }]}>{mapProblem ?? 'Map key needed to choose a point.'}</Text>}
           {mapLoadProblem && (
             <View style={styles.mapRetryRow}>
               <Text accessibilityRole="alert" style={[styles.mapProblem, styles.mapRetryCopy, { color: colors.danger }]}>{mapLoadProblem}</Text>
@@ -510,8 +605,8 @@ export default function DestinationMapScreen() {
               </Pressable>
             </View>
           )}
-          <Pressable accessibilityRole="button" onPress={() => void confirmSelection()} disabled={!mapStyle || (selection.source === 'map-pin' && !mapReady)} style={({ pressed }) => [styles.confirmButton, { backgroundColor: pressed ? colors.accentHover : colors.accent, opacity: !mapStyle || (selection.source === 'map-pin' && !mapReady) ? 0.45 : 1 }]}>
-            <Text style={[styles.confirmText, { color: colors.onAccent }]}>{selection.source === 'tomtom' ? 'Use this place' : 'Use this location'}</Text>
+          <Pressable accessibilityRole="button" onPress={() => void confirmSelection()} disabled={confirmDisabled} style={({ pressed }) => [styles.confirmButton, { backgroundColor: pressed ? colors.accentHover : colors.accent, opacity: confirmDisabled ? 0.45 : 1 }]}>
+            <Text style={[styles.confirmText, { color: colors.onAccent }]}>{station ? 'Confirm station' : selection.source === 'tomtom' ? 'Use this place' : 'Use this location'}</Text>
             <Feather name="arrow-right" size={17} color={colors.onAccent} />
           </Pressable>
         </View>
@@ -522,6 +617,8 @@ export default function DestinationMapScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  invalidStation: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, paddingHorizontal: 28 },
+  invalidBack: { alignSelf: 'stretch', marginTop: 8 },
   overlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, justifyContent: 'space-between', paddingHorizontal: 14 },
   topArea: { gap: 8, paddingTop: 6 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -551,6 +648,10 @@ const styles = StyleSheet.create({
   sheetCopy: { flex: 1, gap: 3 },
   sheetTitle: { fontSize: 15, fontWeight: '700' },
   sheetSubtitle: { fontSize: 12 },
+  stationSourceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stationSourceLink: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stationLicenseLink: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  stationSourceText: { flexShrink: 1, fontSize: 12, lineHeight: 17, textDecorationLine: 'underline' },
   mapProblem: { fontSize: 12, lineHeight: 17 },
   mapRetryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   mapRetryCopy: { flex: 1 },
@@ -560,6 +661,7 @@ const styles = StyleSheet.create({
   confirmText: { fontSize: 14, fontWeight: '700' },
   pinLayer: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   pinMarker: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', transform: [{ translateY: -20 }], shadowColor: '#07182F', shadowOpacity: 0.24, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+  stationMarker: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   mapUnavailable: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 30 },
   unavailableTitle: { fontSize: 17, fontWeight: '700' },
   unavailableCopy: { fontSize: 14, lineHeight: 20, textAlign: 'center' },

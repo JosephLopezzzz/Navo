@@ -159,3 +159,7 @@ One app-level provider observes Reduce Motion, interaction focus, and navigation
 ## Product truth
 
 Keep existing route rules and alert behavior. Rail routes currently have station order but no audited coordinates; bus coordinates are rider-saved. Show when location and notification limits affect alerts, retain the manual progress action, and do not imply an ETA, live feed, guaranteed delivery, or alarm-clock override.
+
+Rail destination alarms use a separate sourced station catalog. Filter names and aliases within the chosen line locally; tapping a station opens its fixed coordinate marker at station zoom. Camera movement, reverse geocoding, and My location must preserve station identity and coordinates. Display the line, city, and coordinate source, and allow the local station point to be confirmed if map imagery fails. Keep saved coordinate snapshots until the rider explicitly selects a station and saves the edit. Do not copy catalog coordinates into journey routes.
+
+Routes is an offline stop guide and saved bus route library. Keep current-trip recovery above the route list. Group rail names, endpoints, and counts with one manual-progress explanation and a separate station-alarm action. Use stable row geometry with shared card feedback; never add a border width only while pressed. Icon and Add controls use the compact preset. For manual journeys, label the action “Start manual trip” and show manual progress instead of automatic alert preferences. Explain missing journey locations once without repeated warning badges.

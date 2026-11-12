@@ -1,4 +1,4 @@
-import type { DestinationSource } from '../domain/models';
+import type { DestinationSource, RailStationReference } from '../domain/models';
 
 export interface DestinationMapSelection {
   latitude: number;
@@ -7,6 +7,8 @@ export interface DestinationMapSelection {
   subtitle: string;
   source: DestinationSource;
   providerPlaceId?: string;
+  railStation?: RailStationReference;
+  railRequestId?: string;
 }
 
 let pendingSelection: DestinationMapSelection | null = null;
@@ -15,9 +17,16 @@ export function setPendingDestinationMapSelection(selection: DestinationMapSelec
   pendingSelection = selection;
 }
 
-export function takePendingDestinationMapSelection(): DestinationMapSelection | null {
+export function takePendingDestinationMapSelection(expectedRail?: { railRequestId: string; stationId: string }): DestinationMapSelection | null {
   const selection = pendingSelection;
   pendingSelection = null;
+  if (expectedRail) {
+    if (selection?.railRequestId !== expectedRail.railRequestId
+      || selection.railStation?.stationId !== expectedRail.stationId
+      || selection.source !== 'rail-catalog') return null;
+  } else if (selection?.railRequestId || selection?.source === 'rail-catalog') {
+    return null;
+  }
   return selection;
 }
 

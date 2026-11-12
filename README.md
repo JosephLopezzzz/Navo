@@ -23,7 +23,8 @@ Navo helps riders save a station, bus drop-off, or other place and receive a loc
 | Capability | Current state |
 | --- | --- |
 | Destination alarms | Implemented in source. Choose a radius, then turn the alarm on when a ride begins. New alarms start off. |
-| Place search and map pins | Implemented with TomTom Orbis Places and MapLibre. A TomTom key and network connection are required while choosing a destination. |
+| Rail station destinations | 51 local station points with aliases, line identity, and map confirmation. Panning keeps the chosen station fixed. Search and station selection work offline; map imagery needs a key and network or cached tiles. See [station sources and limits](docs/RAIL_STATIONS.md). |
+| Place search and map pins | Implemented with TomTom Orbis Places and MapLibre. General place search and map imagery require a TomTom key and network connection. |
 | Destination notifications | Implemented in source. The evaluator ignores fixes with accuracy worse than 80 m, waits until the phone leaves the destination area, then requires two usable fixes near the saved point before sending a local notification. Device acceptance is pending. |
 | Alarm sounds | Per-alarm phone default, three bundled tones, and local-file import/preview/removal are implemented in source. Import keeps the first 25 seconds of an audio file up to 20 MB, with ten imported clips. A rebuilt native app and device acceptance are required. See [local alarm sounds](docs/LOCAL_ALARM_SOUNDS.md). |
 | Background monitoring | Implemented in source through Expo Location and TaskManager while a trip or destination alarm is active. Device acceptance is pending. |
@@ -43,7 +44,7 @@ There are no real in-app screenshots in the repository yet. See the [screenshot 
 
 ## How it works
 
-1. Add a destination by searching TomTom places or choosing a point on the map.
+1. Add a destination by choosing a rail line and station, searching TomTom places, or choosing a point on the map.
 2. Choose an alert radius and save the destination. It stays on the device and its alarm remains off.
 3. Turn on the alarm when the ride starts. Navo requests location and notification permissions.
 4. Navo waits for the phone to move away from the saved point, then checks usable location updates while the alarm is active.
@@ -95,7 +96,7 @@ Replace `YOUR_TOMTOM_KEY` with your TomTom client key. See [Expo environment var
 
 Repeat the `env:set` command with `--environment development` if you also build the development profile.
 
-Without a key, TomTom place search and map tiles are unavailable. The route sequence screens do not need the key.
+Without a key, TomTom place search and map tiles are unavailable. Local rail station search, station-point confirmation, and route sequence screens do not need the key.
 
 ### Install a development build
 
@@ -154,7 +155,7 @@ Do not include API keys, private trip details, or exact personal coordinates in 
 
 ## Route data and known limits
 
-Bundled rail lists contain station names and order only. Their source references are [LRTA Railway Operations](https://www.lrta.gov.ph/railway-operations/) for LRT-1 and LRT-2 and the [DOTr-MRT3 fare matrix](https://www.dotrmrt3.gov.ph/fare-matrix.pdf) for MRT-3. They do not include audited station coordinates or live operating status.
+Journey rail lists contain station names and order only. Their source references are [LRTA Railway Operations](https://www.lrta.gov.ph/railway-operations/) for LRT-1 and LRT-2 and the [DOTr-MRT3 fare matrix](https://www.dotrmrt3.gov.ph/fare-matrix.pdf) for MRT-3. A separate [station destination catalog](docs/RAIL_STATIONS.md) supplies Wikidata (CC0) station points for saved destination alarms. Points identify stations, with no surveyed entrance/platform or live operating status guarantee. They do not enable automatic journey stop progress.
 
 Bus stops and optional coordinates are entered by the rider and stay local. Straight-line route checks are advisory and can be wrong on curved roads or with noisy GPS. Review the location quality and use manual stop confirmation when an automatic check is unavailable.
 
