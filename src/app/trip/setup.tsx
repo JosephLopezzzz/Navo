@@ -3,7 +3,7 @@ import { Alert, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import { router, useLocalSearchParams } from 'expo-router';
 import Feather from '@expo/vector-icons/Feather';
-import { Body, DataSeal, Divider, PrimaryButton, Screen, ScreenTitle, SectionTitle, Subtle } from '../../components/ui';
+import { Body, DataSeal, Divider, PrimaryButton, Screen, ScreenTitle, SecondaryButton, SectionTitle, Subtle } from '../../components/ui';
 import { makeJourneyRoute, railLines } from '../../data/routes';
 import { railStations, searchRailStations } from '../../data/rail-stations';
 import type { AlertMode, Stop, Trip } from '../../domain/models';
@@ -11,12 +11,14 @@ import { startTripState } from '../../domain/trip-actions';
 import { beginBackgroundLocation, stopBackgroundLocationIfIdle } from '../../services/background-location';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
+import { useScreenActionScope } from '../../hooks/useScreenActionScope';
 
 type PickerMode = 'boarding' | 'destination' | null;
 
 export default function TripSetupScreen() {
   const params = useLocalSearchParams<{ lineId?: string; routeId?: string }>();
   const app = useAppState();
+  const captureAction = useScreenActionScope();
   const colors = useNavoColors();
   const route = useMemo(() => {
     if (params.routeId) return app.customBusRoutes.find((item) => item.id === params.routeId);
@@ -88,7 +90,8 @@ export default function TripSetupScreen() {
   };
 
   const commitTrip = async (expectedTripId: string | null) => {
-    if (!journey || !boardingStop || !destinationStop || !app.ready || !mounted.current) return;
+    const isCurrent = captureAction();
+    if (!journey || !boardingStop || !destinationStop || !app.ready || !isCurrent()) return;
     action.current = 'starting';
     setConfirmingReplacement(false);
     setStarting(true);
@@ -127,11 +130,11 @@ export default function TripSetupScreen() {
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Background location setup did not finish. Review your trip status.';
         const latest = await app.mutateState((current) => current.activeTrip?.id === trip.id ? { ...current, locationProblem: message } : current).catch(() => null);
-        if (mounted.current && latest?.activeTrip?.id === trip.id) Alert.alert(locationReady ? 'Trip started in manual mode' : 'Trip saved', message, [{ text: 'Continue', onPress: () => router.replace('/trip/active') }]);
-        else if (mounted.current) router.replace('/trip/active');
+        if (isCurrent() && latest?.activeTrip?.id === trip.id) Alert.alert(locationReady ? 'Trip started in manual mode' : 'Trip saved', message, [{ text: 'Continue', onPress: () => { if (isCurrent()) router.replace('/trip/active'); } }]);
+        else if (isCurrent()) router.replace('/trip/active');
         return;
       }
-      if (mounted.current) router.replace('/trip/active');
+      if (isCurrent()) router.replace('/trip/active');
     } catch (error) {
       if (mounted.current) {
         setStartProblem(error instanceof Error ? error.message : 'Could not start this trip. Check saved data and try again.');
@@ -144,7 +147,8 @@ export default function TripSetupScreen() {
   };
 
   const requestStart = () => {
-    if (!journey || !app.ready || action.current !== 'idle') return;
+    const isCurrent = captureAction();
+    if (!journey || !app.ready || action.current !== 'idle' || !isCurrent()) return;
     const existingTrip = app.activeTrip?.status === 'cancelled' ? null : app.activeTrip;
     if (!existingTrip) {
       void commitTrip(null);
@@ -161,8 +165,8 @@ export default function TripSetupScreen() {
       ? 'Your arrival is saved. Finish that trip or start a new one.'
       : 'Resume your current trip or replace its saved progress with this trip.', [
       { text: 'Cancel', style: 'cancel', onPress: cancel },
-      { text: existingTrip.status === 'completed' ? 'Finish trip' : 'Resume trip', onPress: () => { cancel(); if (mounted.current) router.replace('/trip/active'); } },
-      { text: existingTrip.status === 'completed' ? 'Start new trip' : 'Replace trip', style: 'destructive', onPress: () => { if (action.current === 'confirming') void commitTrip(existingTrip.id); } },
+      { text: existingTrip.status === 'completed' ? 'Finish trip' : 'Resume trip', onPress: () => { cancel(); if (isCurrent()) router.replace('/trip/active'); } },
+      { text: existingTrip.status === 'completed' ? 'Start new trip' : 'Replace trip', style: 'destructive', onPress: () => { if (!isCurrent()) { cancel(); return; } if (action.current === 'confirming') void commitTrip(existingTrip.id); } },
     ], { cancelable: true, onDismiss: cancel });
   };
 
@@ -256,7 +260,8 @@ export default function TripSetupScreen() {
         <Switch accessibilityLabel="Sleep mode, destination only" disabled={busy} value={alertMode === 'destination-only'} onValueChange={(sleep) => setAlertModeOverride(sleep ? 'destination-only' : 'every-stop')} trackColor={{ false: colors.switchOffTrack, true: colors.accent }} thumbColor={colors.switchThumb} />
       </View>}
 
-      {startProblem ? <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{startProblem}</Text> : null}
+      {startProblem || app.storageProblem ? <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{startProblem ?? app.storageProblem}</Text> : null}
+      {app.storageProblem ? <SecondaryButton title="Retry saved data" onPress={() => void app.refreshState()} disabled={busy} /> : null}
       <PrimaryButton title={starting ? 'Starting trip…' : confirmingReplacement ? 'Review current trip…' : locationReady ? 'Start route trip' : 'Start manual trip'} onPress={requestStart} disabled={!app.ready || !journey || busy} />
     </Screen>
   );

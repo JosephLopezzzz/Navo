@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, StyleSheet, Text, View } from 'react-native';
 import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import { router, useFocusEffect } from 'expo-router';
@@ -13,16 +13,23 @@ import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
 import { useLiveLocation } from '../../state/live-location';
 import { readAppState } from '../../services/storage';
+import { useScreenActionScope } from '../../hooks/useScreenActionScope';
 
 export default function ActiveTripScreen() {
   const colors = useNavoColors();
   const app = useAppState();
+  const captureAction = useScreenActionScope();
   const liveLocation = useLiveLocation();
   const refreshState = app.refreshState;
   const actionPending = useRef(false);
   const endDialogOpen = useRef(false);
+  const mounted = useRef(true);
   const [pendingAction, setPendingAction] = useState<'confirm' | 'clear' | null>(null);
   const [actionProblem, setActionProblem] = useState<{ tripId: string; message: string } | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   useFocusEffect(useCallback(() => {
     void refreshState();
     const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') void refreshState(); });
@@ -45,6 +52,7 @@ export default function ActiveTripScreen() {
       <Screen>
         <ScreenTitle>No active trip</ScreenTitle>
         <Subtle>Choose a route and destination to set up a trip.</Subtle>
+        {app.storageProblem ? <><Text accessibilityRole="alert" style={[styles.actionProblem, { color: colors.danger }]}>{app.storageProblem}</Text><SecondaryButton title="Retry saved trip" onPress={() => void refreshState()} /></> : null}
         <PrimaryButton title="Choose a route" onPress={() => router.replace('/routes')} />
       </Screen>
     );
@@ -53,7 +61,7 @@ export default function ActiveTripScreen() {
   const nextIndex = Math.min(trip.lastConfirmedIndex + 1, trip.destinationIndex);
   const nextStop = route.stops[nextIndex];
   const destination = route.stops[trip.destinationIndex];
-  const routeHasLocations = route.coordinateStatus === 'complete' && route.stops.every((stop) => stop.latitude !== undefined && stop.longitude !== undefined);
+  const routeHasLocations = route.coordinateStatus === 'complete' && route.stops.every((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude));
   const metersToNext = liveLocation.location && nextStop?.latitude !== undefined && nextStop.longitude !== undefined
     ? distanceBetweenMeters(liveLocation.location, { latitude: nextStop.latitude, longitude: nextStop.longitude })
     : null;
@@ -62,10 +70,14 @@ export default function ActiveTripScreen() {
     ? 'Waiting for a location fix.'
     : 'Last location check at ' + fixTime + ' · ±' + Math.round(liveLocation.accuracyM ?? 0) + ' m accuracy.';
   const passed = trip.lastConfirmedIndex;
-  const problemMessage = actionProblem?.tripId === trip.id ? actionProblem.message : null;
+  const problemMessage = (actionProblem?.tripId === trip.id ? actionProblem.message : null) ?? app.storageProblem;
+  const reportProblem = (tripId: string, message: string) => {
+    if (mounted.current) setActionProblem({ tripId, message });
+  };
 
   const confirmNext = async () => {
-    if (actionPending.current) return;
+    const isCurrent = captureAction();
+    if (actionPending.current || !isCurrent()) return;
     actionPending.current = true;
     setPendingAction('confirm');
     setActionProblem(null);
@@ -78,14 +90,14 @@ export default function ActiveTripScreen() {
       });
       const result = outcome.result;
       if (!result) {
-        if (latest.activeTrip) setActionProblem({ tripId: latest.activeTrip.id, message: 'Trip progress changed. Review the next stop before confirming again.' });
+        if (latest.activeTrip) reportProblem(latest.activeTrip.id, 'Trip progress changed. Review the next stop before confirming again.');
         return;
       }
       if (result.trip.status === 'completed') {
         try {
           await stopBackgroundLocationIfIdle();
         } catch {
-          setActionProblem({ tripId: trip.id, message: 'Your destination was saved as reached. Location cleanup did not finish; Finish trip will retry it.' });
+          reportProblem(trip.id, 'Your destination was saved as reached. Location cleanup did not finish; Finish trip will retry it.');
         }
         const event = result.events[0];
         if (event) {
@@ -100,52 +112,54 @@ export default function ActiveTripScreen() {
               }
             }
           } catch {
-            setActionProblem({ tripId: trip.id, message: 'Your destination was saved as reached, but the arrival notification could not finish.' });
+            reportProblem(trip.id, 'Your destination was saved as reached, but the arrival notification could not finish.');
           }
         }
       }
     } catch {
       await refreshState();
-      setActionProblem({ tripId: trip.id, message: 'Navo could not confirm the stop save. Review your progress and try again.' });
+      reportProblem(trip.id, 'Navo could not confirm the stop save. Review your progress and try again.');
     } finally {
       actionPending.current = false;
-      setPendingAction(null);
+      if (mounted.current) setPendingAction(null);
     }
   };
 
   const clearTrip = async (expectedTripId = trip.id) => {
-    if (actionPending.current) return;
+    const isCurrent = captureAction();
+    if (actionPending.current || !isCurrent()) return;
     actionPending.current = true;
     setPendingAction('clear');
     setActionProblem(null);
     try {
       const latest = await app.mutateState((current) => clearTripState(current, expectedTripId));
       if (latest.activeTrip) {
-        setActionProblem({ tripId: latest.activeTrip.id, message: 'Your current trip changed. It has been kept.' });
+        reportProblem(latest.activeTrip.id, 'Your current trip changed. It has been kept.');
         return;
       }
       try {
         await stopBackgroundLocationIfIdle();
       } catch {
-        Alert.alert('Trip ended', 'Your trip progress was cleared, but location cleanup did not finish. Reopen Navo to retry location setup.');
+        if (isCurrent()) Alert.alert('Trip ended', 'Your trip progress was cleared, but location cleanup did not finish. Reopen Navo to retry location setup.');
       }
-      router.replace('/routes');
+      if (isCurrent()) router.replace('/routes');
     } catch {
       await refreshState();
-      setActionProblem({ tripId: expectedTripId, message: 'Navo could not confirm that this trip finished. Review your progress and try again.' });
+      reportProblem(expectedTripId, 'Navo could not confirm that this trip finished. Review your progress and try again.');
     } finally {
       actionPending.current = false;
-      setPendingAction(null);
+      if (mounted.current) setPendingAction(null);
     }
   };
 
   const askToEnd = () => {
-    if (actionPending.current || endDialogOpen.current) return;
+    const isCurrent = captureAction();
+    if (actionPending.current || endDialogOpen.current || !isCurrent()) return;
     endDialogOpen.current = true;
     const expectedTripId = trip.id;
     Alert.alert('End this trip?', routeHasLocations ? 'Navo will stop checking your location for this trip.' : 'Your manual stop progress will be cleared.', [
       { text: 'Keep trip', style: 'cancel', onPress: () => { endDialogOpen.current = false; } },
-      { text: 'End trip', style: 'destructive', onPress: () => { endDialogOpen.current = false; void clearTrip(expectedTripId); } },
+      { text: 'End trip', style: 'destructive', onPress: () => { endDialogOpen.current = false; if (isCurrent()) void clearTrip(expectedTripId); } },
     ], { cancelable: true, onDismiss: () => { endDialogOpen.current = false; } });
   };
 
@@ -162,6 +176,7 @@ export default function ActiveTripScreen() {
           <Subtle>{routeHasLocations ? 'Trip location checks have stopped.' : 'You marked this destination as reached.'} Finish your trip to return to Routes.</Subtle>
         </View>
         {problemMessage ? <Text accessibilityRole="alert" style={[styles.actionProblem, { color: colors.danger }]}>{problemMessage}</Text> : null}
+        {app.storageProblem ? <SecondaryButton title="Retry saved trip" onPress={() => void refreshState()} disabled={pendingAction !== null} /> : null}
         <PrimaryButton title={pendingAction === 'clear' ? 'Finishing trip…' : 'Finish trip'} onPress={() => void clearTrip()} disabled={pendingAction !== null} />
       </Screen>
     );
@@ -233,6 +248,7 @@ export default function ActiveTripScreen() {
       </View>
 
       {problemMessage ? <Text accessibilityRole="alert" style={[styles.actionProblem, { color: colors.danger }]}>{problemMessage}</Text> : null}
+      {app.storageProblem ? <SecondaryButton title="Retry saved trip" onPress={() => void refreshState()} disabled={pendingAction !== null} /> : null}
       <PrimaryButton title={pendingAction === 'confirm' ? 'Saving progress…' : nextStop && nextIndex === trip.destinationIndex ? 'Confirm destination reached' : `Confirm ${nextStop?.name ?? 'next stop'} reached`} onPress={() => void confirmNext()} disabled={pendingAction !== null} />
       <SecondaryButton title={pendingAction === 'clear' ? 'Ending trip…' : 'End trip'} onPress={askToEnd} disabled={pendingAction !== null} />
     </Screen>

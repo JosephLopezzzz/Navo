@@ -3,12 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import Feather from '@expo/vector-icons/Feather';
-import { Body, DataSeal, PrimaryButton, Screen, ScreenTitle, SectionTitle, Subtle } from '../../components/ui';
+import { Body, DataSeal, PrimaryButton, Screen, ScreenTitle, SecondaryButton, SectionTitle, Subtle } from '../../components/ui';
 import type { TransitRoute } from '../../domain/models';
 import { buildBusRoute, isBusRouteInUse, upsertBusRoute } from '../../domain/bus-routes';
 import { recordCurrentStop } from '../../services/background-location';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
+import { useScreenActionScope } from '../../hooks/useScreenActionScope';
 
 interface StopDraft { id: string; name: string; latitude?: number; longitude?: number }
 const newDraft = (name = ''): StopDraft => ({ id: `bus-stop-${Date.now()}-${Math.random().toString(16).slice(2)}`, name });
@@ -32,6 +33,7 @@ export default function BusRouteScreen() {
 function BusRouteForm({ routeId, initialRoute }: { routeId?: string; initialRoute?: TransitRoute }) {
   const colors = useNavoColors();
   const app = useAppState();
+  const captureAction = useScreenActionScope();
   // Capture the edit baseline once, so a refresh cannot replace an unsaved draft.
   const [originalRoute] = useState(initialRoute ?? null);
   const [draftRouteId] = useState(() => routeId ?? `bus-${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -80,14 +82,15 @@ function BusRouteForm({ routeId, initialRoute }: { routeId?: string; initialRout
   };
 
   const saveRoute = async () => {
-    if (operation.current || !app.ready) return;
+    const isCurrent = captureAction();
+    if (operation.current || !app.ready || !isCurrent()) return;
     operation.current = 'save';
     setSaving(true);
     setProblem(null);
     try {
       const route = buildBusRoute(draftRouteId, routeName, stops);
       await app.mutateState((current) => upsertBusRoute(current, route, originalRoute));
-      if (mounted.current) {
+      if (isCurrent()) {
         if (originalRoute) router.replace('/routes');
         else router.replace({ pathname: '/trip/setup', params: { routeId: route.id } });
       }
@@ -160,7 +163,8 @@ function BusRouteForm({ routeId, initialRoute }: { routeId?: string; initialRout
         <Body>Location checks need a point for every stop.</Body>
         <Subtle>Navo stores these points locally. Coordinate checks follow straight lines between saved stops, so bus bends can create false direction or deviation advice.</Subtle>
       </View>
-      {problem ? <Text accessibilityRole="alert" style={[styles.problem, { color: colors.danger }]}>{problem}</Text> : null}
+      {problem || app.storageProblem ? <Text accessibilityRole="alert" style={[styles.problem, { color: colors.danger }]}>{problem ?? app.storageProblem}</Text> : null}
+      {app.storageProblem ? <SecondaryButton title="Retry saved data" onPress={() => void app.refreshState()} disabled={busy} /> : null}
       <PrimaryButton title={saving ? 'Saving route…' : originalRoute ? 'Save route' : 'Save route and choose destination'} onPress={() => void saveRoute()} disabled={!app.ready || busy} />
     </Screen>
   );

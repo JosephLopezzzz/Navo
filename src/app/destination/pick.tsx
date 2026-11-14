@@ -4,7 +4,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { ActivityIndicator, StyleSheet, Text, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { NavoPressable as Pressable } from '../../components/NavoPressable';
 import * as Location from 'expo-location';
-import { Divider, PrimaryButton, Screen, ScreenTitle, Subtle } from '../../components/ui';
+import { Divider, PrimaryButton, Screen, ScreenTitle, SecondaryButton, Subtle } from '../../components/ui';
 import { createDestinationAlarm, DEFAULT_DESTINATION_RADIUS_M, disarmDestinationAlarm } from '../../domain/destination-alarm';
 import { getAlarmTone, type AlarmToneId } from '../../domain/alarm-tones';
 import { AlarmSoundPicker } from '../../components/AlarmSoundPicker';
@@ -16,6 +16,7 @@ import { createPlacesSearchSessionId, discoverNearbyPlaces, resolvePlaceSuggesti
 import { railLines } from '../../data/routes';
 import { getRailStation, searchRailStations, type RailStation } from '../../data/rail-stations';
 import { formatCoordinates, parseCoordinates } from '../../domain/coordinates';
+import { useScreenActionScope } from '../../hooks/useScreenActionScope';
 
 const WAKE_RADII = [200, 500, 1000];
 
@@ -91,6 +92,7 @@ function DestinationForm({
 }) {
   const colors = useNavoColors();
   const app = useAppState();
+  const captureAction = useScreenActionScope();
   const existingAlarm = destinationId
     ? app.destinationAlarms.find((alarm) => alarm.destinationId === destinationId)
     : undefined;
@@ -387,7 +389,8 @@ function DestinationForm({
   }, [initialStation, selectRailStation]);
 
   const saveDestination = async () => {
-    if (busyRef.current || soundBusy) return;
+    const isCurrent = captureAction();
+    if (busyRef.current || soundBusy || !isCurrent()) return;
     if (!coordinate || !pointConfirmed) {
       setSaveProblem('Choose and confirm a destination before saving.');
       return;
@@ -437,7 +440,7 @@ function DestinationForm({
           destinationAlarms,
         };
       });
-      router.replace('/(tabs)');
+      if (isCurrent()) router.replace('/(tabs)');
     } catch {
       setSaveProblem('Navo could not save this alarm on your device. Check storage and try again.');
     } finally {
@@ -468,7 +471,8 @@ function DestinationForm({
   const footer = step === 'review' ? (
     <>
       {editWillDisarm ? <Text style={[styles.warningText, { color: colors.warning }]}>Saving changes turns this alarm off.</Text> : null}
-      {saveProblem ? <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{saveProblem}</Text> : null}
+      {saveProblem || app.storageProblem ? <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{saveProblem ?? app.storageProblem}</Text> : null}
+      {app.storageProblem ? <SecondaryButton title="Retry saved data" onPress={() => void app.refreshState()} disabled={saving || soundBusy} /> : null}
       <PrimaryButton title={saving ? 'Saving…' : 'Save alarm'} onPress={() => void saveDestination()} disabled={saving || soundBusy} />
       <Text style={[styles.footnote, { color: colors.muted }]}>Alarm stays off until you switch it on.</Text>
     </>
@@ -490,6 +494,11 @@ function DestinationForm({
           <Feather name="x" size={20} color={colors.ink} />
         </Pressable>
       </View>
+
+      {step === 'choose' && app.storageProblem ? <View style={styles.storageNotice}>
+        <Text accessibilityRole="alert" style={[styles.problemText, { color: colors.danger }]}>{app.storageProblem}</Text>
+        <SecondaryButton title="Retry saved data" onPress={() => void app.refreshState()} />
+      </View> : null}
 
       {step === 'choose' ? (
         <>
@@ -874,6 +883,7 @@ const styles = StyleSheet.create({
   suggestionSubtitle: { fontSize: 12 },
   problemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
   problemText: { fontSize: 13, lineHeight: 19 },
+  storageNotice: { gap: 8 },
   problemCopy: { flex: 1 },
   problemRetry: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 10 },
   problemRetryText: { fontSize: 12, fontWeight: '700' },

@@ -9,10 +9,12 @@ import { deleteBusRoute, duplicateBusRoute, isBusRouteInUse, upsertBusRoute } fr
 import type { TransitRoute } from '../../domain/models';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
+import { useScreenActionScope } from '../../hooks/useScreenActionScope';
 
 export default function RoutesScreen() {
   const colors = useNavoColors();
   const app = useAppState();
+  const captureAction = useScreenActionScope();
   const { customBusRoutes } = app;
   const [expandedRouteId, setExpandedRouteId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<'dialog' | 'copy' | 'delete' | null>(null);
@@ -41,7 +43,8 @@ export default function RoutesScreen() {
   };
 
   const copyRoute = async (source: TransitRoute, reverse = false) => {
-    if (operation.current || !app.ready) return;
+    const isCurrent = captureAction();
+    if (operation.current || !app.ready || !isCurrent()) return;
     operation.current = 'write';
     setPendingAction('copy');
     setActionProblem(null);
@@ -61,7 +64,7 @@ export default function RoutesScreen() {
         return upsertBusRoute(current, route, null);
       });
       copyRetry.current = null;
-      if (mounted.current) router.push({ pathname: '/bus/new', params: { routeId: route.id } });
+      if (isCurrent()) router.push({ pathname: '/bus/new', params: { routeId: route.id } });
     } catch (error) {
       await app.refreshState();
       if (mounted.current) setActionProblem(error instanceof Error && /^(This route changed|A different route)/.test(error.message) ? error.message : 'Navo could not confirm the route copy. Review your saved routes and try again.');
@@ -72,7 +75,8 @@ export default function RoutesScreen() {
   };
 
   const requestDelete = (route: TransitRoute) => {
-    if (operation.current || !app.ready) return;
+    const isCurrent = captureAction();
+    if (operation.current || !app.ready || !isCurrent()) return;
     if (isBusRouteInUse(app, route.id)) {
       setActionProblem('Finish or end the trip using this route before deleting it.');
       return;
@@ -86,6 +90,7 @@ export default function RoutesScreen() {
       if (mounted.current) setPendingAction(null);
     };
     const remove = async () => {
+      if (!isCurrent()) { cancel(); return; }
       if (operation.current !== 'dialog' || !mounted.current) return;
       operation.current = 'write';
       setPendingAction('delete');

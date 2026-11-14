@@ -29,7 +29,7 @@ Navo helps riders save a station, bus drop-off, or other place and receive a loc
 | Alarm sounds | Per-alarm phone default, three bundled tones, and local-file import/preview/removal are implemented in source. Import keeps the first 25 seconds of an audio file up to 20 MB, with ten imported clips. A rebuilt native app and device acceptance are required. See [local alarm sounds](docs/LOCAL_ALARM_SOUNDS.md). |
 | Background monitoring | Implemented in source through Expo Location and TaskManager while a trip or destination alarm is active. Device acceptance is pending. |
 | Rail route sequences | LRT-1, LRT-2, and MRT-3 station names and order are bundled. Coordinates are not included, so rail trips use manual stop confirmation. |
-| Rider-created bus routes | Riders can save stops in travel order and explicitly record a location at a stop. Automatic route checks are available only when every stop has a location. |
+| Rider-created bus routes | Create, edit, reorder, duplicate, reverse, and delete saved routes. Edits preserve current-trip snapshots; routes in use cannot be deleted. Automatic checks require a location for every journey stop. |
 | Route trip alerts | Manual stop confirmation, sleep mode, and every-stop or destination-only alert modes are implemented. Automatic checks still depend on usable saved coordinates. |
 | Route guidance | Direction and route-deviation advisories use coarse straight-line checks. Curves, station access paths, or GPS drift can make them inaccurate. |
 | Local storage | SQLite stores routes, destinations, settings, alarm state, and trip state. Existing AsyncStorage state is copied into SQLite on first database initialization. |
@@ -50,7 +50,7 @@ There are no real in-app screenshots in the repository yet. See the [screenshot 
 4. Navo waits for the phone to move away from the saved point, then checks usable location updates while the alarm is active.
 5. When consecutive usable fixes are near the destination, Navo sends a local notification and switches that alarm off.
 
-For route-based trips, choose a rail line or create a bus route, select boarding and destination stops, then track progress with location points where available or confirm stops manually.
+For route-based trips, choose a rail line or create a bus route, search boarding and destination stops, and swap their order if needed. Follow progress with location points where available or confirm stops manually. Routes offers Continue/Finish for the current trip and an explicit Resume/Replace choice before starting another. Rail setup can open a separate alarm for the selected station, with map confirmation and the alarm initially off. Use a saved bus route's More control to edit, duplicate, reverse-copy, or delete it. See the [Routes implementation and acceptance notes](docs/ROUTES_ENHANCEMENT_PLAN.md).
 
 ## Technology
 
