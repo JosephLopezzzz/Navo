@@ -179,7 +179,7 @@ function RootNavigator() {
             />
             <Stack.Screen
               name="destination/map"
-              options={{ title: "Pick on map", headerShown: false }}
+              options={{ title: "Pick on map", headerShown: false, presentation: "modal" }}
             />
             <Stack.Screen
               name="alarm/enable"

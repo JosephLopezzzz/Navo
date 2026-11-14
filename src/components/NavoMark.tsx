@@ -15,13 +15,13 @@ export function NavoMark({ size = 44 }: { size?: number }) {
         </LinearGradient>
         <LinearGradient id="navoLogoDepth" x1="0%" y1="0%" x2="0%" y2="100%">
           <Stop stopColor="#001B4B" stopOpacity="0" />
-          <Stop offset=".54" stopColor="#001B4B" stopOpacity=".04" />
-          <Stop offset=".76" stopColor="#001B4B" stopOpacity=".42" />
+          <Stop offset={0.54} stopColor="#001B4B" stopOpacity=".04" />
+          <Stop offset={0.76} stopColor="#001B4B" stopOpacity=".42" />
           <Stop offset="1" stopColor="#00183F" stopOpacity=".66" />
         </LinearGradient>
         <LinearGradient id="navoLogoPin" x1="0%" y1="0%" x2="0%" y2="100%">
           <Stop stopColor="#07D8C4" />
-          <Stop offset=".48" stopColor="#058DB7" />
+          <Stop offset={0.48} stopColor="#058DB7" />
           <Stop offset="1" stopColor="#06356F" />
         </LinearGradient>
       </Defs>
