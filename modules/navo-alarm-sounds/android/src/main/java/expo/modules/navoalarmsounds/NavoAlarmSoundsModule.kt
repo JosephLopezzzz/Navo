@@ -1,5 +1,6 @@
 package expo.modules.navoalarmsounds
 
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.Dispatchers
@@ -10,6 +11,11 @@ class NavoAlarmSoundsModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("NavoAlarmSounds")
+    AsyncFunction("getDeviceAlarmSounds") { DeviceAlarmSounds.getSounds(context()) }
+    AsyncFunction("getDeviceSoundUri") { uri: String -> DeviceAlarmSounds.getSoundUri(context(), uri) }
+    AsyncFunction("presentDeviceNotification") { identifier: String, uri: String, channelId: String, label: String, body: String, data: Map<String, String> ->
+      DeviceAlarmSounds.presentNotification(context(), identifier, uri, channelId, label, body, data)
+    }
     AsyncFunction("prepareSound") Coroutine { sourceUri: String, fileName: String ->
       val currentContext = context()
       withContext(Dispatchers.IO) { ImportedAlarmSoundManager.prepareSound(currentContext, sourceUri, fileName) }

@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
-import { AndroidImportance } from 'expo-notifications';
+import { AndroidAudioContentType, AndroidAudioUsage, AndroidImportance } from 'expo-notifications';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
-import { ALARM_TONES } from '../domain/alarm-tones';
+import { ALARM_TONES, getAlarmNotificationChannelId, type AlarmTone } from '../domain/alarm-tones';
 
 export interface AlarmPermissionSummary {
   notifications: boolean;
@@ -34,14 +34,17 @@ export async function ensureAlarmNotificationChannels(): Promise<void> {
       vibrationPattern: [0, 250, 120, 250],
       lightColor: '#0869A8',
     }),
-    ...ALARM_TONES.map((tone) => Notifications.setNotificationChannelAsync(tone.androidChannelId, {
-      name: 'Destination alarm: ' + tone.label,
-      description: 'Arrival alerts for alarms using the ' + tone.label + ' sound.',
-      importance: AndroidImportance.HIGH,
-      vibrationPattern: [0, 250, 120, 250],
-      lightColor: '#0869A8',
-      ...(tone.soundFileName ? { sound: tone.soundFileName } : {}),
-    })),
+    ...ALARM_TONES.filter((tone) => !('deviceUri' in tone)).flatMap((tone: AlarmTone) => [true, false].map((vibrationEnabled) =>
+      Notifications.setNotificationChannelAsync(getAlarmNotificationChannelId(tone, vibrationEnabled), {
+        name: `Destination alarm: ${tone.label}${vibrationEnabled ? '' : ' · no vibration'}`,
+        description: 'Distance and destination alerts using the ' + tone.label + ' sound.',
+        importance: AndroidImportance.HIGH,
+        enableVibrate: vibrationEnabled,
+        vibrationPattern: vibrationEnabled ? [0, 250, 120, 250] : [0],
+        audioAttributes: { usage: AndroidAudioUsage.ALARM, contentType: AndroidAudioContentType.SONIFICATION },
+        lightColor: '#0869A8',
+        sound: tone.soundFileName ?? 'default',
+      }))),
   ]);
 }
 

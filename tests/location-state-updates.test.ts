@@ -211,7 +211,9 @@ describe('location state persistence and subscriptions', () => {
     const current = savedState(modules.defaultAppState);
     const telemetry = withLocation({
       ...current,
-      destinationAlarms: current.destinationAlarms.map((alarm) => ({ ...alarm, lastDistanceM: 1_500, lastFixAt: NOW - 1_000, consecutiveInsideFixes: 1 })),
+      destinationAlarms: current.destinationAlarms.map((alarm) => ({ ...alarm, lastDistanceM: 1_500, lastFixAt: NOW - 1_000, consecutiveInsideFixes: 1,
+        progress: { ...alarm.progress, distanceFixCounts: { '500': 1 }, closeFixes: 1, movingAwayFixes: 1, lastAccuracyM: 15 },
+      })),
     });
 
     expect(modules.events.visibleAppStateSignature(telemetry)).toBe(modules.events.visibleAppStateSignature(current));

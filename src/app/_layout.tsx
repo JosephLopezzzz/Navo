@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { AppState, Appearance, View } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
@@ -12,6 +12,7 @@ import { LEGAL_DOCUMENT_VERSION } from "../data/legal";
 import { GuideTargetsProvider } from "../components/guide/GuideTargets";
 import { InAppGuide } from "../components/guide/InAppGuide";
 import { MotionPreferencesProvider } from "../components/MotionPreferencesProvider";
+import { AlarmAlertCoordinator } from "../components/AlarmAlertCoordinator";
 
 const MAX_AMBIENT_MAP_CACHE_BYTES = 32 * 1024 * 1024;
 
@@ -38,6 +39,7 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const app = useAppState();
+  const pathname = usePathname();
   const colors = useNavoColors();
   const isLoadingAppearance = !app.ready && !app.storageProblem;
   const legalAcknowledged =
@@ -75,7 +77,7 @@ function RootNavigator() {
     trip: app.activeTrip ? [app.activeTrip.id, app.activeTrip.status, app.activeTrip.lastConfirmedIndex] : null,
     settings: [app.settings.updateIntervalMs, app.settings.updateDistanceM, app.settings.monitoringAlarmId],
   });
-  const pendingAlarmKey = app.destinationAlarms.flatMap((alarm) => alarm.pendingEvent ? [alarm.pendingEvent.id] : []).join('|');
+  const pendingAlarmKey = app.destinationAlarms.flatMap((alarm) => alarm.pendingEvents.map((event) => event.id)).join('|');
   const hasMonitoringWork = app.destinationAlarms.some((alarm) => alarm.enabled)
     || (app.activeTrip?.status === 'active' && app.activeRoute?.coordinateStatus === 'complete');
   const finishGuide = useCallback(() => {
@@ -111,7 +113,7 @@ function RootNavigator() {
   }, [app.ready, trackingWorkKey, hasMonitoringWork]);
   useEffect(() => {
     if (!app.ready || !pendingAlarmKey) return;
-    // Delivery retries do not keep GPS running after arrival.
+    // Delivery retries do not keep GPS running after monitoring has finished.
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') void deliverPendingDestinationAlarmEvents().catch(() => undefined);
     }, 15_000);
@@ -185,6 +187,8 @@ function RootNavigator() {
               name="alarm/enable"
               options={{ title: "Enable alarm", headerShown: false }}
             />
+            <Stack.Screen name="alarm/alert" options={{ headerShown: false, presentation: "card" }} />
+            <Stack.Screen name="alarm/destination" options={{ headerShown: false, presentation: "card" }} />
             <Stack.Screen
               name="permissions"
               options={{ title: "Alarm permissions", headerShown: false }}
@@ -214,7 +218,8 @@ function RootNavigator() {
             />
           </Stack.Protected>
         </Stack>
-        <InAppGuide />
+        <AlarmAlertCoordinator ready={showApp && !app.storageProblem} />
+        {!pathname.startsWith('/alarm/') ? <InAppGuide /> : null}
       </View>
     </GuideTargetsProvider>
   );

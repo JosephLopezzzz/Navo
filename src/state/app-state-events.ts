@@ -27,6 +27,12 @@ export function visibleAppStateSignature(state: StoredAppState): string {
     activeTrip: state.activeTrip ? { ...state.activeTrip, lastDestinationDistanceM: undefined } : null,
     destinationAlarms: state.destinationAlarms.map((alarm) => ({
       ...alarm, lastDistanceM: null, lastFixAt: null, consecutiveInsideFixes: 0,
+      progress: {
+        notifiedDistancesM: alarm.progress.notifiedDistancesM,
+        arrivalConfirmedAt: alarm.progress.arrivalConfirmedAt,
+        arrivalNotified: alarm.progress.arrivalNotified,
+        missedNotified: alarm.progress.missedNotified,
+      },
     })),
   });
 }

@@ -18,7 +18,7 @@ function fix(distanceM: number, timestamp: number, accuracyM: number | null = 10
 function savedState(overrides: Partial<StoredAppState> = {}): StoredAppState {
   return {
     ...defaultAppState, destinations: [destination],
-    destinationAlarms: [armDestinationAlarm(createDestinationAlarm('alarm', destination.id), 'session', 90_000)],
+    destinationAlarms: [armDestinationAlarm({ ...createDestinationAlarm('alarm', destination.id), notifyOnArrival: false, notifyOnMissed: false }, 'session', 90_000)],
     ...overrides,
   };
 }
@@ -30,7 +30,7 @@ describe('shared location batch processing', () => {
     const alarm = outcome.state.destinationAlarms[0];
     expect(outcome.acceptedFixes).toBe(4);
     expect(alarm.watchState).toBe('alerted');
-    expect(alarm.pendingEvent?.id).toBe('session:99000');
+    expect(alarm.pendingEvents[0]?.id).toBe('session:approaching:500');
     expect(alarm.lastDistanceM).toBeCloseTo(350, 0);
     expect(outcome.state.lastLocationAt).toBe(now);
     expect(current.destinationAlarms[0].watchState).toBe('awaiting-exit');
@@ -67,9 +67,9 @@ describe('shared location batch processing', () => {
 
   it('preserves independent durable alerts for every enabled alarm in a batch', () => {
     const current = savedState();
-    current.destinationAlarms.push(armDestinationAlarm(createDestinationAlarm('second', destination.id), 'second-session', 90_000));
+    current.destinationAlarms.push(armDestinationAlarm({ ...createDestinationAlarm('second', destination.id), notifyOnArrival: false, notifyOnMissed: false }, 'second-session', 90_000));
     const outcome = processLocationBatch(current, [fix(800, 97_000), fix(400, 98_000), fix(350, 99_000)], now);
-    expect(outcome.state.destinationAlarms.map((alarm) => alarm.pendingEvent?.id)).toEqual(['session:99000', 'second-session:99000']);
+    expect(outcome.state.destinationAlarms.map((alarm) => alarm.pendingEvents[0]?.id)).toEqual(['session:approaching:500', 'second-session:approaching:500']);
   });
 
   it('does no location work when every alarm and trip is inactive', () => {

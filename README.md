@@ -22,11 +22,12 @@ Navo helps riders save a station, bus drop-off, or other place and receive a loc
 
 | Capability | Current state |
 | --- | --- |
-| Destination alarms | Implemented in source. Choose a radius, then turn the alarm on when a ride begins. New alarms start off. |
+| Destination alarms | Implemented in source. Select one or more approach distances, arrival and possible-missed-stop alerts, then enable the alarm for a ride. New alarms start off. See [staged alerts](docs/STAGED_DESTINATION_ALERTS.md). |
 | Rail station destinations | 51 local station points with aliases, line identity, and map confirmation. Panning keeps the chosen station fixed. Search and station selection work offline; map imagery needs a key and network or cached tiles. See [station sources and limits](docs/RAIL_STATIONS.md). |
 | Place search and map pins | Implemented with TomTom Orbis Places and MapLibre. General place search and map imagery require a TomTom key and network connection. |
 | Destination notifications | Implemented in source. The evaluator ignores fixes with accuracy worse than 80 m, waits until the phone leaves the destination area, then requires two usable fixes near the saved point before sending a local notification. Device acceptance is pending. |
-| Alarm sounds | Per-alarm phone default, three bundled tones, and local-file import/preview/removal are implemented in source. Import keeps the first 25 seconds of an audio file up to 20 MB, with ten imported clips. A rebuilt native app and device acceptance are required. See [local alarm sounds](docs/LOCAL_ALARM_SOUNDS.md). |
+| Alarm screens | Three full-page in-app states for close, destination area and possible missed stop. Foreground events open one screen; notification taps recover through startup. Mute, arrival completion, confirmed end tracking, Next alert and a read-only destination map are implemented. See [alarm experience](docs/ALARM_EXPERIENCE_PLAN.md). |
+| Alarm sounds | Per-alarm system default, six bundled cues, Android phone alarm tones without audio copies, Android vibration selection, and local import/preview/removal are implemented in source. A rebuilt native app and device acceptance are required. See [local alarm sounds](docs/LOCAL_ALARM_SOUNDS.md) and [tone provenance](assets/sounds/ADDITIONAL_TONES.md). |
 | Background monitoring | Implemented in source through Expo Location and TaskManager while a trip or destination alarm is active. Device acceptance is pending. |
 | Rail route sequences | LRT-1, LRT-2, and MRT-3 station names and order are bundled. Coordinates are not included, so rail trips use manual stop confirmation. |
 | Rider-created bus routes | Create, edit, reorder, duplicate, reverse, and delete saved routes. Edits preserve current-trip snapshots; routes in use cannot be deleted. Automatic checks require a location for every journey stop. |
@@ -34,7 +35,7 @@ Navo helps riders save a station, bus drop-off, or other place and receive a loc
 | Route guidance | Direction and route-deviation advisories use coarse straight-line checks. Curves, station access paths, or GPS drift can make them inaccurate. |
 | Local storage | SQLite stores routes, destinations, settings, alarm state, and trip state. Existing AsyncStorage state is copied into SQLite on first database initialization. |
 
-Destination alarms use a default 500 m radius, adjustable to 250, 500, 750, or 1,000 m. They do not need an origin point. A missed or low-quality GPS fix does not remove the manual route-progress action.
+Destination alarms default to a 500 m approach reminder, a confirmed 100 m destination-area alert, and a cautious possible-missed-stop check. Approach distances can be selected together at 200 m, 500 m, 1 km and 2 km. They do not need an origin point. A missed or low-quality GPS fix does not remove the manual route-progress action.
 
 Navo does not provide live bus or train service data, an ETA, or a guaranteed alarm-clock override. Background location and notifications depend on permissions, device settings, and operating-system behavior.
 

@@ -13,6 +13,7 @@ import type { DestinationKind } from '../../domain/models';
 import { formatCoordinates } from '../../domain/coordinates';
 import { useNavoColors } from '../../theme/colors';
 import { getRailStation, RAIL_CATALOG_VERSION, type RailStation } from '../../data/rail-stations';
+import { createDestinationMapStyle } from '../../services/destination-map-style';
 
 const MANILA_CENTER: [number, number] = [120.9842, 14.5995];
 const MIN_MAP_ZOOM = 4;
@@ -240,22 +241,7 @@ function DestinationMap({ params, station }: { params: DestinationMapParams; sta
     cameraRef.current?.zoomTo(nextZoom, { duration: 180 });
   };
 
-  const mapStyle = useMemo<StyleSpecification | null>(() => {
-    if (!TOMTOM_API_KEY) return null;
-    const mapStyleName = colors.isDark ? 'street-dark' : 'street-light';
-    return {
-      version: 8,
-      sources: {
-        tomtom: {
-          type: 'raster',
-          tiles: [`https://api.tomtom.com/maps/orbis/display/raster/tile/{z}/{x}/{y}?apiVersion=2&key=${encodeURIComponent(TOMTOM_API_KEY)}&style=${mapStyleName}&tileSize=256&geopoliticalView=PH`],
-          tileSize: 256,
-          attribution: '© TomTom, © OpenStreetMap',
-        },
-      },
-      layers: [{ id: 'tomtom-raster', type: 'raster', source: 'tomtom' }],
-    };
-  }, [colors.isDark]);
+  const mapStyle = useMemo(() => createDestinationMapStyle(colors.isDark), [colors.isDark]);
 
   const mapReady = loadedMap?.style === mapStyle && loadedMap.attempt === mapAttempt;
   const mapLoadProblem = mapLoadIssue?.style === mapStyle && mapLoadIssue.attempt === mapAttempt ? mapLoadIssue.message : null;

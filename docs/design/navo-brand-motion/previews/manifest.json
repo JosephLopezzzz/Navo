@@ -1,0 +1,37 @@
+{
+  "source": "assets/navo-mark.svg",
+  "sourceSha256": "151ff0f117ff75178c0df4a0df8deb66cf218314fa9783dfcb3d3dbce9709328",
+  "background": "#07182F",
+  "variants": [
+    {
+      "file": "navo-intro.gif",
+      "width": 512,
+      "height": 512,
+      "renderedFrames": 24,
+      "encodedFrames": 22,
+      "durationMs": 1200,
+      "loop": null,
+      "bytes": 133746,
+      "firstAndLastDecodedFramesMatch": true,
+      "stationaryBodyPixelsStable": true,
+      "maxChangedPixelsFromSettledFrame": 4670,
+      "maxBytes": 614400,
+      "palette": "shared 256 colors, fixed ordered dither"
+    },
+    {
+      "file": "navo-loader.gif",
+      "width": 192,
+      "height": 192,
+      "renderedFrames": 28,
+      "encodedFrames": 25,
+      "durationMs": 1400,
+      "loop": 0,
+      "bytes": 44902,
+      "firstAndLastDecodedFramesMatch": true,
+      "stationaryBodyPixelsStable": true,
+      "maxChangedPixelsFromSettledFrame": 1133,
+      "maxBytes": 204800,
+      "palette": "shared 256 colors, fixed ordered dither"
+    }
+  ]
+}

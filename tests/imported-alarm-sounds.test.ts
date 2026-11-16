@@ -5,7 +5,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({ default: {} }));
 import { addImportedSound, importedSoundFileName, MAX_IMPORTED_SOUNDS, normalizeImportedSounds, soundLabel, type ImportedAlarmSound } from '../src/domain/imported-alarm-sounds';
 import { getAlarmTone } from '../src/domain/alarm-tones';
 import { normalizeAppState } from '../src/services/storage';
-import { createDestinationAlarm } from '../src/domain/destination-alarm';
+import { armDestinationAlarm, createDestinationAlarm } from '../src/domain/destination-alarm';
 
 const sound: ImportedAlarmSound = {
   id: 'imported:example-12345678', label: 'My music', fileName: 'navo_imported_example-12345678.wav',
@@ -14,9 +14,9 @@ const sound: ImportedAlarmSound = {
 
 describe('imported alarm sound persistence', () => {
   it('migrates existing alarms without changing their built-in sound or armed state', () => {
-    const alarm = { ...createDestinationAlarm('alarm', 'destination'), enabled: true, ringtoneId: 'soft-bell' };
+    const alarm = { ...armDestinationAlarm(createDestinationAlarm('alarm', 'destination'), 'session', 1000), ringtoneId: 'soft-bell' };
     const state = normalizeAppState({ schemaVersion: 4, destinationAlarms: [alarm] });
-    expect(state.schemaVersion).toBe(5);
+    expect(state.schemaVersion).toBe(7);
     expect(state.importedAlarmSounds).toEqual([]);
     expect(state.destinationAlarms[0]).toEqual(alarm);
   });
@@ -31,7 +31,7 @@ describe('imported alarm sound persistence', () => {
   });
 
   it('falls back to the phone default when a referenced import is removed', () => {
-    const alarm = { ...createDestinationAlarm('alarm', 'destination'), enabled: true, ringtoneId: sound.id };
+    const alarm = { ...armDestinationAlarm(createDestinationAlarm('alarm', 'destination'), 'session', 1000), ringtoneId: sound.id };
     const state = normalizeAppState({ importedAlarmSounds: [], destinationAlarms: [alarm] });
     expect(state.destinationAlarms[0]).toMatchObject({ ringtoneId: 'system-default', enabled: true });
   });

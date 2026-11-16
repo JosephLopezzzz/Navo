@@ -63,10 +63,10 @@ const destination: SavedDestination = {
 
 function stateWithAlarm(): StoredAppState {
   return {
-    schemaVersion: 5,
+    schemaVersion: 7,
     activeTrip: null, activeRoute: null, customBusRoutes: [], importedAlarmSounds: [],
     destinations: [destination],
-    destinationAlarms: [armDestinationAlarm(createDestinationAlarm('alarm-home', destination.id), 'session-home', NOW - 60_000)],
+    destinationAlarms: [armDestinationAlarm({ ...createDestinationAlarm('alarm-home', destination.id), notifyOnArrival: false, notifyOnMissed: false }, 'session-home', NOW - 60_000)],
     settings: { approachRadiusM: 500, updateDistanceM: 75, updateIntervalMs: 20_000, sleepMode: true, appearance: 'light', locationNoticeDismissed: true },
     firstRun: {
       legalAcknowledgement: null, onboardingComplete: true, guideCompleted: true, permissionNoticeAlarmId: null,
@@ -84,10 +84,10 @@ function location(distanceM: number, ageMs: number, accuracy = 10) {
 }
 
 function addPendingEvent(alarmId = 'alarm-home', destinationId = destination.id): DestinationAlarmEvent {
-  const event = { id: `event-${alarmId}`, alarmId, destinationId, sessionId: 'session-home', message: `You are near ${destinationId}.` };
+  const event: DestinationAlarmEvent = { id: `event-${alarmId}`, alarmId, destinationId, sessionId: 'session-home', stage: 'approaching', occurredAt: NOW, distanceM: 400, thresholdM: 500, message: `You are near ${destinationId}.` };
   const current = mocks.state!;
   current.destinationAlarms = current.destinationAlarms.map((alarm) => alarm.id === alarmId
-    ? { ...alarm, enabled: false, watchState: 'alerted', pendingEvent: event }
+    ? { ...alarm, enabled: false, watchState: 'alerted', pendingEvents: [event] }
     : alarm);
   return event;
 }
@@ -151,6 +151,64 @@ beforeEach(() => {
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
 
 describe('shared background distance tracking', () => {
+  it('ends the post-arrival window on recovery even without a fresh GPS fix', async () => {
+    const alarm = mocks.state!.destinationAlarms[0];
+    alarm.armedAt = NOW - 700_000;
+    alarm.lastFixAt = NOW - 601_000;
+    alarm.progress.arrivalConfirmedAt = NOW - 601_000;
+    alarm.notifyOnMissed = true;
+    mocks.registered = true;
+    const service = await loadService();
+    await service.reconcileBackgroundLocation();
+    expect(mocks.state!.destinationAlarms[0].enabled).toBe(false);
+    expect(mocks.state!.destinationAlarms[0].watchState).toBe('alerted');
+    expect(mocks.start).not.toHaveBeenCalled();
+    expect(mocks.stop).toHaveBeenCalled();
+  });
+  it('delivers close then arrival alerts without stopping the passed-stop check', async () => {
+    const alarm = mocks.state!.destinationAlarms[0];
+    alarm.notifyOnArrival = true;
+    alarm.notifyOnMissed = true;
+    alarm.vibrationEnabled = false;
+    mocks.deliver.mockResolvedValueOnce('close-notification').mockResolvedValueOnce('arrival-notification');
+    await loadService();
+    await mocks.task!({ data: { locations: [location(800, 9_000), location(400, 8_000), location(350, 7_000)] } });
+    expect(mocks.state!.destinationAlarms[0].enabled).toBe(true);
+    expect(mocks.deliver).toHaveBeenNthCalledWith(1, expect.objectContaining({ stage: 'approaching' }), expect.any(Object), false);
+    await mocks.task!({ data: { locations: [location(80, 4_000), location(50, 3_000)] } });
+    expect(mocks.deliver).toHaveBeenNthCalledWith(2, expect.objectContaining({ stage: 'arrived' }), expect.any(Object), false);
+    expect(mocks.state!.destinationAlarms[0].enabled).toBe(true);
+    expect(mocks.state!.destinationAlarms[0].pendingEvents).toEqual([]);
+    expect(mocks.state!.destinationAlarms[0].notificationIdentifier).toBe('arrival-notification');
+    expect(mocks.dismiss).toHaveBeenCalledWith('close-notification');
+  });
+
+  it('expires a stale close reminder instead of ringing it after a delayed restart', async () => {
+    const event = addPendingEvent();
+    event.occurredAt = NOW - 121_000;
+    const service = await loadService();
+    await service.deliverPendingDestinationAlarmEvents();
+    expect(mocks.deliver).not.toHaveBeenCalled();
+    expect(mocks.state!.destinationAlarms[0].pendingEvents).toEqual([]);
+  });
+
+  it('dismisses a superseded in-flight close alert without consuming the newer arrival', async () => {
+    addPendingEvent();
+    const arrival: DestinationAlarmEvent = { id: 'session-home:arrived', alarmId: 'alarm-home', destinationId: destination.id,
+      sessionId: 'session-home', stage: 'arrived', occurredAt: NOW, distanceM: 40, message: 'Destination area reached.' };
+    mocks.deliver.mockImplementationOnce(async () => {
+      mocks.state!.destinationAlarms[0].pendingEvents = [arrival];
+      return 'superseded-close';
+    });
+    const service = await loadService();
+    await service.deliverPendingDestinationAlarmEvents();
+    expect(mocks.dismiss).toHaveBeenCalledWith('superseded-close');
+    expect(mocks.state!.destinationAlarms[0].pendingEvents).toEqual([arrival]);
+    await service.deliverPendingDestinationAlarmEvents();
+    expect(mocks.deliver).toHaveBeenLastCalledWith(arrival, expect.any(Object), true);
+    expect(mocks.state!.destinationAlarms[0].pendingEvents).toEqual([]);
+  });
+
   it('processes every chronological sample in a batch so an intermediate arrival is not lost', async () => {
     await loadService();
     expect(mocks.task).not.toBeNull();
@@ -160,7 +218,7 @@ describe('shared background distance tracking', () => {
     const alarm = mocks.state!.destinationAlarms[0];
     expect(alarm.watchState).toBe('alerted');
     expect(alarm.enabled).toBe(false);
-    expect(alarm.pendingEvent).toBeNull();
+    expect(alarm.pendingEvents).toEqual([]);
     expect(alarm.notificationIdentifier).toBe('posted-notification');
     expect(mocks.deliver).toHaveBeenCalledOnce();
     expect(mocks.publish).toHaveBeenCalledWith(expect.objectContaining({ lastLocationAt: NOW - 1_000 }));
@@ -187,11 +245,11 @@ describe('shared background distance tracking', () => {
     await loadService();
 
     await mocks.task!({ data: { locations: [location(1_000, 2_000)] } });
-    expect(mocks.state!.destinationAlarms[0].pendingEvent).toEqual(event);
+    expect(mocks.state!.destinationAlarms[0].pendingEvents).toEqual([event]);
 
     await mocks.task!({ data: { locations: [location(900, 1_000)] } });
     expect(mocks.deliver).toHaveBeenCalledTimes(2);
-    expect(mocks.state!.destinationAlarms[0].pendingEvent).toBeNull();
+    expect(mocks.state!.destinationAlarms[0].pendingEvents).toEqual([]);
     expect(mocks.state!.destinationAlarms[0].notificationIdentifier).toBe('posted-notification');
   });
 
@@ -206,8 +264,8 @@ describe('shared background distance tracking', () => {
     await service.deliverPendingDestinationAlarmEvents();
 
     expect(mocks.deliver).toHaveBeenCalledTimes(2);
-    expect(mocks.state!.destinationAlarms[0].pendingEvent).toEqual(first);
-    expect(mocks.state!.destinationAlarms[1].pendingEvent).toBeNull();
+    expect(mocks.state!.destinationAlarms[0].pendingEvents).toEqual([first]);
+    expect(mocks.state!.destinationAlarms[1].pendingEvents).toEqual([]);
   });
 
   it('deduplicates concurrent pending-delivery attempts for the same session event', async () => {

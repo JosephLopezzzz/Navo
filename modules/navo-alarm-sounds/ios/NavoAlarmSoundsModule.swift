@@ -39,7 +39,7 @@ public class NavoAlarmSoundsModule: Module {
         let url = try self.soundURL(fileName)
         guard FileManager.default.fileExists(atPath: url.path) else { throw self.failure("Imported sound unavailable") }
         let content = UNMutableNotificationContent()
-        content.title = "Your stop is near"
+        content.title = data["title"] ?? "Destination update"
         content.body = body
         content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: fileName))
         content.userInfo = data

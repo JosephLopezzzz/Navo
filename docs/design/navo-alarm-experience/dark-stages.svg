@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1192" height="944" viewBox="0 0 1192 944"><rect width="1192" height="944" fill="#EDF3F9"/><text x="32" y="38" fill="#07182F" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" ><tspan x="32" dy="0">Navo destination alerts</tspan></text><text x="32" y="66" fill="#41546C" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" ><tspan x="32" dy="0">Proposal only · illustrative distances · not an implemented alarm screen</tspan></text><g transform="translate(32 96)">
+    <rect width="360" height="800" rx="22" fill="#050C17"/>
+    <text x="24" y="54" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700" ><tspan x="24" dy="0">Navo</tspan></text>
+    <path d="M318 32c-7 0-12 5-12 12 0 10 12 21 12 21s12-11 12-21c0-7-5-12-12-12z" fill="none" stroke="#00D3C5" stroke-width="2"/>
+    <circle cx="318" cy="44" r="4" fill="none" stroke="#00D3C5" stroke-width="2"/>
+    <path d="M24 83H336" stroke="#263B54"/>
+    <text x="24" y="142" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="32" font-weight="700" ><tspan x="24" dy="0">Your stop</tspan><tspan x="24" dy="38">is close.</tspan></text>
+    <text x="24" y="252" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="600" ><tspan x="24" dy="0">Fernando Poe Jr.</tspan><tspan x="24" dy="34">Station</tspan></text>
+    <text x="24" y="322" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" ><tspan x="24" dy="0">LRT-1 · Quezon City</tspan></text>
+    <text x="24" y="377" fill="#00D3C5" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="600" ><tspan x="24" dy="0">About 500 m away</tspan></text>
+    <text x="24" y="405" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" ><tspan x="24" dy="0">Straight-line estimate</tspan></text>
+    <text x="24" y="466" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" ><tspan x="24" dy="0">Get ready to leave</tspan><tspan x="24" dy="25">when it is safe.</tspan></text>
+    <rect x="24" y="566" width="312" height="56" rx="14" fill="#3F9ED4"/>
+    <text x="180" y="601" fill="#07182F" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" text-anchor="middle"><tspan x="180" dy="0">I’m getting off</tspan></text>
+    <text x="180" y="647" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle"><tspan x="180" dy="0">Later alerts stay on</tspan></text>
+    <rect x="24" y="667" width="312" height="52" rx="14" fill="none" stroke="#263B54"/>
+    <text x="180" y="699" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" text-anchor="middle"><tspan x="180" dy="0">Mute this alert</tspan></text>
+    <text x="180" y="756" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="600" text-anchor="middle"><tspan x="180" dy="0">End tracking…</tspan></text>
+    <path d="M134 783H226" stroke="#C1D0E0" stroke-width="3" stroke-linecap="round"/>
+  </g><g transform="translate(416 96)">
+    <rect width="360" height="800" rx="22" fill="#050C17"/>
+    <text x="24" y="54" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700" ><tspan x="24" dy="0">Navo</tspan></text>
+    <path d="M318 32c-7 0-12 5-12 12 0 10 12 21 12 21s12-11 12-21c0-7-5-12-12-12z" fill="none" stroke="#00D3C5" stroke-width="2"/>
+    <circle cx="318" cy="44" r="4" fill="none" stroke="#00D3C5" stroke-width="2"/>
+    <path d="M24 83H336" stroke="#263B54"/>
+    <text x="24" y="142" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="32" font-weight="700" ><tspan x="24" dy="0">You’re at your</tspan><tspan x="24" dy="38">destination.</tspan></text>
+    <text x="24" y="252" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="600" ><tspan x="24" dy="0">Fernando Poe Jr.</tspan><tspan x="24" dy="34">Station</tspan></text>
+    <text x="24" y="322" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" ><tspan x="24" dy="0">LRT-1 · Quezon City</tspan></text>
+    <text x="24" y="377" fill="#00D3C5" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="600" ><tspan x="24" dy="0">In the destination area</tspan></text>
+    <text x="24" y="405" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" ><tspan x="24" dy="0">GPS estimate · check your stop</tspan></text>
+    <text x="24" y="466" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" ><tspan x="24" dy="0">Check your surroundings</tspan><tspan x="24" dy="25">before getting off.</tspan></text>
+    <rect x="24" y="566" width="312" height="56" rx="14" fill="#3F9ED4"/>
+    <text x="180" y="601" fill="#07182F" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" text-anchor="middle"><tspan x="180" dy="0">I’m here</tspan></text>
+    <text x="180" y="647" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle"><tspan x="180" dy="0">Confirms this destination is complete</tspan></text>
+    <rect x="24" y="667" width="312" height="52" rx="14" fill="none" stroke="#263B54"/>
+    <text x="180" y="699" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" text-anchor="middle"><tspan x="180" dy="0">Mute this alert</tspan></text>
+    <text x="180" y="756" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="600" text-anchor="middle"><tspan x="180" dy="0">End tracking…</tspan></text>
+    <path d="M134 783H226" stroke="#C1D0E0" stroke-width="3" stroke-linecap="round"/>
+  </g><g transform="translate(800 96)">
+    <rect width="360" height="800" rx="22" fill="#050C17"/>
+    <text x="24" y="54" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700" ><tspan x="24" dy="0">Navo</tspan></text>
+    <path d="M318 32c-7 0-12 5-12 12 0 10 12 21 12 21s12-11 12-21c0-7-5-12-12-12z" fill="none" stroke="#F6CE7C" stroke-width="2"/>
+    <circle cx="318" cy="44" r="4" fill="none" stroke="#F6CE7C" stroke-width="2"/>
+    <path d="M24 83H336" stroke="#263B54"/>
+    <text x="24" y="142" fill="#F6CE7C" font-family="Segoe UI, Arial, sans-serif" font-size="32" font-weight="700" ><tspan x="24" dy="0">You may have</tspan><tspan x="24" dy="38">passed your stop.</tspan></text>
+    <text x="24" y="252" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="600" ><tspan x="24" dy="0">Fernando Poe Jr.</tspan><tspan x="24" dy="34">Station</tspan></text>
+    <text x="24" y="322" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="400" ><tspan x="24" dy="0">LRT-1 · Quezon City</tspan></text>
+    <text x="24" y="377" fill="#F6CE7C" font-family="Segoe UI, Arial, sans-serif" font-size="23" font-weight="600" ><tspan x="24" dy="0">About 350 m away</tspan></text>
+    <text x="24" y="405" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="400" ><tspan x="24" dy="0">Moving away from the saved point</tspan></text>
+    <text x="24" y="466" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="400" ><tspan x="24" dy="0">Check your stop and choose</tspan><tspan x="24" dy="25">a safe next step.</tspan></text>
+    <rect x="24" y="566" width="312" height="56" rx="14" fill="#3F9ED4"/>
+    <text x="180" y="601" fill="#07182F" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" text-anchor="middle"><tspan x="180" dy="0">Check destination</tspan></text>
+    <text x="180" y="647" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" text-anchor="middle"><tspan x="180" dy="0">Opens your saved destination</tspan></text>
+    <rect x="24" y="667" width="312" height="52" rx="14" fill="none" stroke="#263B54"/>
+    <text x="180" y="699" fill="#F7FAFF" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600" text-anchor="middle"><tspan x="180" dy="0">Mute this alert</tspan></text>
+    <text x="180" y="756" fill="#C1D0E0" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="600" text-anchor="middle"><tspan x="180" dy="0">End tracking…</tspan></text>
+    <path d="M134 783H226" stroke="#C1D0E0" stroke-width="3" stroke-linecap="round"/>
+  </g><text x="32" y="927" fill="#41546C" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="400" ><tspan x="32" dy="0">Obsidian · 360 dp concepts · controls use the existing Navo press feedback</tspan></text></svg>

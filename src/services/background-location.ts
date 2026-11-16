@@ -4,6 +4,7 @@ import { Location as LocationSession } from 'expo-location/next';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import { processLocationBatch } from '../domain/location-processing';
+import { MAX_POST_ARRIVAL_MONITORING_MS } from '../domain/destination-alarm';
 import { getLocationSamplingPolicy, type LocationSamplingPolicy } from '../domain/location-sampling';
 import { hasValidCoordinates } from '../domain/location-quality';
 import { buildMonitoringNotification } from '../domain/monitoring-notification';
@@ -90,9 +91,8 @@ async function deliverEvent(item: TripEvent): Promise<void> {
       : item.type === 'route-deviation' ? 'Check your route'
         : item.type === 'approaching' ? 'Approaching stop' : 'Stop update';
   await Notifications.scheduleNotificationAsync({
-    content: { title, body: item.message, sound: true, data: { eventId: item.id },
-      ...(Platform.OS === 'android' ? { channelId: 'navo-trip' } : {}) },
-    trigger: null,
+    content: { title, body: item.message, sound: true, data: { eventId: item.id } },
+    trigger: Platform.OS === 'android' ? { channelId: 'navo-trip' } : null,
   });
 }
 
@@ -100,18 +100,33 @@ async function deliverDestinationAlarmEvent(event: DestinationAlarmEvent): Promi
   const state = await readAppState();
   const alarm = state.destinationAlarms.find((item) => item.id === event.alarmId);
   const destination = state.destinations.find((item) => item.id === event.destinationId);
-  if (!alarm || !destination || alarm.sessionId !== event.sessionId || alarm.pendingEvent?.id !== event.id) return;
+  if (!alarm || !destination || alarm.sessionId !== event.sessionId || !alarm.pendingEvents.some((pending) => pending.id === event.id)) return;
+  const maxDeliveryAgeMs = event.stage === 'missed' ? 5 * 60_000 : 2 * 60_000;
+  if (!Number.isFinite(event.occurredAt) || Date.now() - event.occurredAt > maxDeliveryAgeMs) {
+    // A durable retry must not announce an old arrival as if it is happening now.
+    await updateAppState((current) => ({ ...current, destinationAlarms: current.destinationAlarms.map((item) =>
+      item.id === event.alarmId && item.sessionId === event.sessionId
+        ? { ...item, pendingEvents: item.pendingEvents.filter((pending) => pending.id !== event.id) } : item) }));
+    return;
+  }
   const tone = getAlarmTone(alarm.ringtoneId, state.importedAlarmSounds);
-  const notificationIdentifier = await deliverAlarmNotification(event, tone);
+  const notificationIdentifier = await deliverAlarmNotification(event, tone, alarm.vibrationEnabled);
+  let previousNotificationIdentifier: string | null = null;
   const updated = await updateAppState((current) => {
     const currentAlarm = current.destinationAlarms.find((item) => item.id === event.alarmId);
-    if (!currentAlarm || currentAlarm.sessionId !== event.sessionId || currentAlarm.pendingEvent?.id !== event.id) return current;
+    if (!currentAlarm || currentAlarm.sessionId !== event.sessionId || !currentAlarm.pendingEvents.some((pending) => pending.id === event.id)) return current;
+    previousNotificationIdentifier = currentAlarm.notificationIdentifier;
     return { ...current, destinationAlarms: current.destinationAlarms.map((item) => item.id === event.alarmId
-      ? { ...item, pendingEvent: null, notificationIdentifier } : item) };
+      ? { ...item, pendingEvents: item.pendingEvents.filter((pending) => pending.id !== event.id), notificationIdentifier } : item) };
   });
   if (!updated.destinationAlarms.some((item) => item.id === event.alarmId
     && item.sessionId === event.sessionId && item.notificationIdentifier === notificationIdentifier)) {
     await dismissAlarmNotification(notificationIdentifier);
+  }
+  // Keep one posted destination alert per alarm. A later stage replaces the
+  // previous one, and switching this alarm off can clear its latest alert.
+  if (previousNotificationIdentifier && previousNotificationIdentifier !== notificationIdentifier) {
+    await dismissAlarmNotification(previousNotificationIdentifier).catch(() => undefined);
   }
 }
 
@@ -126,7 +141,10 @@ function deliverOnce(event: DestinationAlarmEvent): Promise<void> {
 export async function deliverPendingDestinationAlarmEvents(): Promise<void> {
   const state = await readAppState();
   // Failed events remain durable; one failed delivery must not block another.
-  await Promise.allSettled(state.destinationAlarms.flatMap((alarm) => alarm.pendingEvent ? [deliverOnce(alarm.pendingEvent)] : []));
+  await Promise.allSettled(state.destinationAlarms.filter((alarm) => alarm.pendingEvents.length).map(async (alarm) => {
+    // Stages for one alarm are ordered; independent alarms never block each other.
+    for (const event of alarm.pendingEvents) await deliverOnce(event);
+  }));
 }
 
 function locationOptions(policy: LocationSamplingPolicy): Location.LocationTaskOptions {
@@ -161,6 +179,13 @@ async function stopTracking(running: boolean): Promise<void> {
 
 async function reconcileTracking(): Promise<void> {
   let state = await readAppState();
+  const expired = (alarm: StoredAppState['destinationAlarms'][number]) => alarm.enabled
+    && alarm.progress.arrivalConfirmedAt !== null && Date.now() - alarm.progress.arrivalConfirmedAt >= MAX_POST_ARRIVAL_MONITORING_MS;
+  if (state.destinationAlarms.some(expired)) {
+    // A poor/missing GPS wake must not extend an already-confirmed arrival window.
+    state = await updateAppState((current) => ({ ...current, destinationAlarms: current.destinationAlarms.map((alarm) =>
+      expired(alarm) ? { ...alarm, enabled: false, watchState: 'alerted' as const } : alarm) }));
+  }
   publishLiveLocation(state);
   const running = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
   if (!hasLocationWork(state)) {

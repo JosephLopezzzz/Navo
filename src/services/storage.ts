@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SQLite from 'expo-sqlite';
 import type { DestinationAlarm, DestinationKind, SavedDestination, TransitRoute, Trip } from '../domain/models';
 import { DEFAULT_ALARM_TONE_ID, isAlarmToneId } from '../domain/alarm-tones';
+import { normalizeDestinationAlarm } from '../domain/destination-alarm';
 import { normalizeImportedSounds, type ImportedAlarmSound } from '../domain/imported-alarm-sounds';
 import { normalizeRailDestinationMetadata } from '../domain/rail-destination';
 import { publishAppStateChange, type StateChangeSource } from '../state/app-state-events';
@@ -33,7 +34,7 @@ export interface FirstRunState {
   permissionNoticeAlarmId: string | null;
 }
 export interface StoredAppState {
-  schemaVersion: 5;
+  schemaVersion: 7;
   activeTrip: Trip | null;
   activeRoute: TransitRoute | null;
   customBusRoutes: TransitRoute[];
@@ -71,7 +72,7 @@ export const defaultFirstRunState: FirstRunState = {
   permissionNoticeAlarmId: null,
 };
 export const defaultAppState: StoredAppState = {
-  schemaVersion: 5,
+  schemaVersion: 7,
   activeTrip: null,
   activeRoute: null,
   customBusRoutes: [],
@@ -90,17 +91,19 @@ export function normalizeAppState(value: unknown): StoredAppState {
   return {
     ...defaultAppState,
     ...parsed,
-    schemaVersion: 5,
+    schemaVersion: 7,
     importedAlarmSounds,
     activeTrip: parsed.activeTrip ?? null,
     activeRoute: parsed.activeRoute ?? null,
     customBusRoutes: Array.isArray(parsed.customBusRoutes) ? parsed.customBusRoutes : [],
     destinations: Array.isArray(parsed.destinations) ? parsed.destinations.map(normalizeRailDestinationMetadata) : [],
     destinationAlarms: Array.isArray(parsed.destinationAlarms)
-      ? parsed.destinationAlarms.map((alarm) => ({
-        ...alarm,
-        ringtoneId: isAlarmToneId(alarm?.ringtoneId, importedAlarmSounds) ? alarm.ringtoneId : DEFAULT_ALARM_TONE_ID,
-      }))
+      ? parsed.destinationAlarms.flatMap((value) => {
+        const alarm = normalizeDestinationAlarm(value);
+        return alarm ? [{ ...alarm,
+          ringtoneId: isAlarmToneId(alarm.ringtoneId, importedAlarmSounds) ? alarm.ringtoneId : DEFAULT_ALARM_TONE_ID,
+        }] : [];
+      })
       : [],
     settings: {
       ...defaultSettings,

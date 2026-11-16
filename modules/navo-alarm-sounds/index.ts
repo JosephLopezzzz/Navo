@@ -6,6 +6,9 @@ export interface PreparedSound {
 }
 
 interface NavoAlarmSoundsModule {
+  getDeviceAlarmSounds(): Promise<{ uri: string; label: string }[]>;
+  getDeviceSoundUri(uri: string): Promise<string | null>;
+  presentDeviceNotification(identifier: string, uri: string, channelId: string, label: string, body: string, data: Record<string, string>): Promise<void>;
   prepareSound(sourceUri: string, fileName: string): Promise<PreparedSound>;
   getSoundUri(fileName: string): Promise<string | null>;
   deleteSound(fileName: string): Promise<void>;

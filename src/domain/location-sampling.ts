@@ -1,5 +1,5 @@
 import type { StoredAppState } from '../services/storage';
-import { distanceBetweenCoordinatesM } from './destination-alarm';
+import { ARRIVAL_RADIUS_M, DESTINATION_EXIT_HYSTERESIS_M, distanceBetweenCoordinatesM } from './destination-alarm';
 import { getLocationFixProblem, hasValidCoordinates } from './location-quality';
 
 export type LocationSamplingProfile = 'recovery' | 'departure' | 'far' | 'approaching' | 'near';
@@ -42,14 +42,23 @@ export function getLocationSamplingPolicy(state: StoredAppState, now = Date.now(
       continue;
     }
     const distanceM = distanceBetweenCoordinatesM(state.lastLocation, destination);
-    if (alarm.watchState === 'awaiting-exit' && distanceM + uncertaintyM + conservativeSpeedMps * ageSeconds <= alarm.radiusM) {
+    if (alarm.watchState === 'awaiting-exit' && distanceM + uncertaintyM + conservativeSpeedMps * ageSeconds <= ARRIVAL_RADIUS_M + DESTINATION_EXIT_HYSTERESIS_M) {
       waitingInside = true;
       continue;
     }
-    if (alarm.watchState === 'monitoring' && alarm.consecutiveInsideFixes === 1
+    const confirmingStage = alarm.consecutiveInsideFixes === 1 || alarm.progress.arrivalFixes === 1
+      || (alarm.notifyOnMissed && alarm.progress.closeFixes === 1)
+      || alarm.alertDistancesM.some((distance) => !alarm.progress.notifiedDistancesM.includes(distance) && alarm.progress.distanceFixCounts[distance] === 1);
+    if (alarm.watchState === 'monitoring' && confirmingStage
       && alarm.lastFixAt !== null && now - alarm.lastFixAt <= 30_000
       && !getLocationFixProblem({ ...state.lastLocation, timestamp: alarm.lastFixAt, accuracyM: state.lastLocationAccuracyM }, now, alarm.armedAt)) needsConfirmation = true;
-    boundaryDistanceM = Math.min(boundaryDistanceM, distanceM - alarm.radiusM - uncertaintyM);
+    const remainingDistances = alarm.alertDistancesM.filter((distance) => !alarm.progress.notifiedDistancesM.includes(distance));
+    const boundaryRadiusM = Math.max(
+      ARRIVAL_RADIUS_M,
+      ...remainingDistances,
+      alarm.notifyOnMissed ? 200 : 0,
+    );
+    boundaryDistanceM = Math.min(boundaryDistanceM, distanceM - boundaryRadiusM - uncertaintyM);
   }
   if (state.activeTrip?.status === 'active' && state.activeRoute) {
     const trip = state.activeTrip;

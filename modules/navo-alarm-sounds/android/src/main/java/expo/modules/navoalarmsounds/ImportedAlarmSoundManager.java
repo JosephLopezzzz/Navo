@@ -187,7 +187,12 @@ public final class ImportedAlarmSoundManager {
     File file = soundFile(context, name);
     if (file.exists() && !file.delete()) throw new IOException("Could not remove the sound file");
     context.revokeUriPermission(contentUri(context, name), Intent.FLAG_GRANT_READ_URI_PERMISSION);
-    if (Build.VERSION.SDK_INT >= 26) context.getSystemService(NotificationManager.class).deleteNotificationChannel(channelId(name));
+    if (Build.VERSION.SDK_INT >= 26) {
+      NotificationManager manager = context.getSystemService(NotificationManager.class);
+      manager.deleteNotificationChannel(channelId(name));
+      manager.deleteNotificationChannel(channelId(name).replace("-v1", "-v2-vibrate"));
+      manager.deleteNotificationChannel(channelId(name).replace("-v1", "-v2-still"));
+    }
   }
 
   public static void pruneUnusedSounds(Context context, List<String> fileNames) throws IOException {
@@ -216,8 +221,30 @@ public final class ImportedAlarmSoundManager {
     context.getSystemService(NotificationManager.class).cancel(identifier, 0);
   }
 
+  /** An explicit app intent is sent only when the rider taps the notification. */
+  static Intent notificationIntent(Context context, Map<String, String> data) {
+    Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+    if (launch == null) return null;
+    String alarmId = data.get("alarmId");
+    String sessionId = data.get("sessionId");
+    String eventId = data.get("eventId");
+    if (alarmId != null && sessionId != null && eventId != null && !alarmId.isEmpty() && !sessionId.isEmpty() && !eventId.isEmpty()
+      && alarmId.length() <= 512 && sessionId.length() <= 512 && eventId.length() <= 512) {
+      // Build from the bound identity rather than accepting an arbitrary URL.
+      // Intent data also gives each session/event a distinct PendingIntent key.
+      Uri target = new Uri.Builder().scheme("navo").authority("alarm").appendPath("alert")
+        .appendQueryParameter("alarmId", alarmId).appendQueryParameter("sessionId", sessionId)
+        .appendQueryParameter("eventId", eventId).build();
+      launch.setAction(Intent.ACTION_VIEW).setData(target).removeCategory(Intent.CATEGORY_LAUNCHER);
+      launch.addCategory(Intent.CATEGORY_BROWSABLE);
+    }
+    return launch.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+  }
+
   public static void presentNotification(Context context, String identifier, String name, String channel, String label, String body, Map<String, String> data) throws IOException, PackageManager.NameNotFoundException {
-    if (!identifier.startsWith(NOTIFICATION_PREFIX) || !channel.equals(channelId(name))) throw new IllegalArgumentException("Invalid notification identifier");
+    boolean vibrate = !"false".equals(data.get("vibrationEnabled"));
+    String expectedChannel = channelId(name).replace("-v1", "-v2-" + (vibrate ? "vibrate" : "still"));
+    if (!identifier.startsWith(NOTIFICATION_PREFIX) || !channel.equals(expectedChannel)) throw new IllegalArgumentException("Invalid notification identifier");
     File file = soundFile(context, name);
     if (!file.isFile()) throw new IOException("Imported sound unavailable");
     if (isNotificationPresented(context, identifier)) return;
@@ -225,13 +252,20 @@ public final class ImportedAlarmSoundManager {
     // Only the OS sound services receive access; the provider is otherwise private.
     context.grantUriPermission("android", sound, Intent.FLAG_GRANT_READ_URI_PERMISSION);
     try { context.grantUriPermission("com.android.systemui", sound, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (IllegalArgumentException ignored) { /* Vendor SystemUI can have another package name. */ }
-    AudioAttributes attributes = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+    postNotification(context, identifier, sound, channel, label, body, data);
+  }
+
+  static void postNotification(Context context, String identifier, Uri sound, String channel, String label, String body, Map<String, String> data) throws PackageManager.NameNotFoundException {
+    if (!identifier.startsWith(NOTIFICATION_PREFIX)) throw new IllegalArgumentException("Invalid notification identifier");
+    if (isNotificationPresented(context, identifier)) return;
+    boolean vibrate = !"false".equals(data.get("vibrationEnabled"));
+    AudioAttributes attributes = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
     NotificationManager manager = context.getSystemService(NotificationManager.class);
     if (Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(channel) == null) {
       NotificationChannel notificationChannel = new NotificationChannel(channel, "Destination alarm: " + label, NotificationManager.IMPORTANCE_HIGH);
       notificationChannel.setSound(sound, attributes);
-      notificationChannel.enableVibration(true);
-      notificationChannel.setVibrationPattern(new long[] {0, 250, 120, 250});
+      if (vibrate) notificationChannel.setVibrationPattern(new long[] {0, 250, 120, 250});
+      notificationChannel.enableVibration(vibrate);
       manager.createNotificationChannel(notificationChannel);
     }
     Bundle metadata = context.getPackageManager().getApplicationInfo(context.getPackageName(), PackageManager.GET_META_DATA).metaData;
@@ -239,12 +273,13 @@ public final class ImportedAlarmSoundManager {
     Notification.Builder builder = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(context, channel) : new Notification.Builder(context);
     Bundle extras = new Bundle();
     for (Map.Entry<String, String> item : data.entrySet()) extras.putString(item.getKey(), item.getValue());
-    builder.setSmallIcon(icon).setContentTitle("Your stop is near").setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
+    String title = data.get("title");
+    if (title == null || title.length() > 160) title = "Destination update";
+    builder.setSmallIcon(icon).setContentTitle(title).setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
       .setColor(Color.rgb(8, 105, 168)).setCategory(Notification.CATEGORY_ALARM).setAutoCancel(true).setOnlyAlertOnce(true).setExtras(extras);
-    if (Build.VERSION.SDK_INT < 26) builder.setSound(sound, attributes).setVibrate(new long[] {0, 250, 120, 250}).setPriority(Notification.PRIORITY_HIGH);
-    Intent launch = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+    if (Build.VERSION.SDK_INT < 26) builder.setSound(sound, attributes).setVibrate(vibrate ? new long[] {0, 250, 120, 250} : new long[] {0}).setPriority(Notification.PRIORITY_HIGH);
+    Intent launch = notificationIntent(context, data);
     if (launch != null) {
-      launch.setAction(context.getPackageName() + "." + identifier).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
       builder.setContentIntent(PendingIntent.getActivity(context, 0, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
     }
     manager.notify(identifier, 0, builder.build());

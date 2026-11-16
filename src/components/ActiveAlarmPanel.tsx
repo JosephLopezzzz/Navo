@@ -1,8 +1,9 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, StyleSheet, Text, View } from 'react-native';
 import { getAlarmDistancePresentation } from '../domain/alarm-distance-presentation';
+import { getCurrentAlarmAlerts } from '../domain/alarm-experience';
 import { useAppState } from '../state/AppStateProvider';
 import { useLiveLocation } from '../state/live-location';
 import { useNavoColors } from '../theme/colors';
@@ -60,6 +61,7 @@ export function ActiveAlarmPanel() {
 
   const options = selected && !selected.enabled ? [selected, ...enabled] : enabled;
   const presentation = getAlarmDistancePresentation(destination, alarm, reading, now);
+  const alert = getCurrentAlarmAlerts(app, now).find((item) => item.alarm.id === alarm.id);
   const statusColor = presentation.tone === 'warning' ? colors.warning : presentation.tone === 'success' ? colors.success : colors.muted;
 
   return (
@@ -74,6 +76,12 @@ export function ActiveAlarmPanel() {
       <Text style={[styles.estimate, { color: colors.muted }]}>
         Straight-line estimate{presentation.updatedLabel ? ` · ${presentation.updatedLabel}` : ''}
       </Text>
+      {alert ? <NavoPressable motion="compact" accessibilityRole="button" onPress={() => router.push({ pathname: '/alarm/alert', params: {
+        alarmId: alert.alarm.id, sessionId: alert.event.sessionId, eventId: alert.event.id,
+      } })} style={styles.chooseButton}>
+        <Text style={[styles.chooseText, { color: colors.accent }]}>Open stop alert</Text>
+        <Feather name="arrow-right" size={18} color={colors.accent} />
+      </NavoPressable> : null}
       {options.length > 1 ? (
         <>
           <NavoPressable
@@ -96,7 +104,7 @@ export function ActiveAlarmPanel() {
                   motion="card"
                   accessibilityRole="radio"
                   accessibilityState={{ checked: option.id === alarm.id }}
-                  accessibilityLabel={`${name}${option.enabled ? '' : option.pendingEvent ? ', alert pending' : ', alert sent'}`}
+                  accessibilityLabel={`${name}${option.enabled ? '' : option.pendingEvents.length ? ', alert pending' : ', alert sent'}`}
                   onPress={() => { setSelectedAlarmId(option.id); setChoosing(false); }}
                   style={styles.option}
                 >

@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.Instrumentation;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
@@ -16,6 +17,7 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /** Runs against synthetic audio only; it does not read or change saved Navo alarms. */
@@ -40,6 +42,18 @@ public final class ImportedSoundSmokeTest extends Instrumentation {
     File oversized = new File(context.getCacheDir(), suffix + "-large.wav");
     int status = Activity.RESULT_OK;
     try {
+      Map<String, String> tapData = new HashMap<>();
+      tapData.put("alarmId", "alarm /?&");
+      tapData.put("sessionId", "ride:one&eventId=other");
+      tapData.put("eventId", "session:arrived/one");
+      tapData.put("url", "https://outside.invalid/");
+      Intent tap = ImportedAlarmSoundManager.notificationIntent(context, tapData);
+      check(tap != null && Intent.ACTION_VIEW.equals(tap.getAction()), "Notification taps must use a view intent");
+      check(tap.getComponent() != null && context.getPackageName().equals(tap.getComponent().getPackageName()), "Notification taps must target Navo explicitly");
+      check("navo".equals(tap.getData().getScheme()) && "alarm".equals(tap.getData().getHost()) && "/alert".equals(tap.getData().getPath()), "Tap target must be the Navo alarm screen");
+      check(tapData.get("alarmId").equals(tap.getData().getQueryParameter("alarmId"))
+        && tapData.get("sessionId").equals(tap.getData().getQueryParameter("sessionId"))
+        && tapData.get("eventId").equals(tap.getData().getQueryParameter("eventId")), "Tap identity must be encoded without changing its session");
       writeWave(input, 30);
       Map<String, Object> prepared = ImportedAlarmSoundManager.prepareSound(context, input.toURI().toString(), waveName);
       check(((Number) prepared.get("durationSeconds")).doubleValue() == 25, "Long WAV must stop at 25 seconds");
@@ -71,7 +85,7 @@ public final class ImportedSoundSmokeTest extends Instrumentation {
       try { ImportedAlarmSoundManager.getSoundUri(context, "../outside.wav"); } catch (IllegalArgumentException expected) { traversalRejected = true; }
       check(traversalRejected, "Sound lookup must reject path traversal");
 
-      String channel = "navo-imported-" + suffix + "-wave-v1";
+      String channel = "navo-imported-" + suffix + "-wave-v2-vibrate";
       ImportedAlarmSoundManager.presentNotification(context, identifier, waveName, channel, "Synthetic test sound", "Navo native sound test", Collections.singletonMap("eventId", suffix));
       long deadline = SystemClock.elapsedRealtime() + 3000;
       while (!ImportedAlarmSoundManager.isNotificationPresented(context, identifier) && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(50);

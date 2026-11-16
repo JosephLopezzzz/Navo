@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import Feather from '@expo/vector-icons/Feather';
-import { ALARM_TONES, DEFAULT_ALARM_TONE_ID, getAlarmTone, isBuiltInAlarmToneId, type AlarmTone, type AlarmToneId } from '../domain/alarm-tones';
+import { ALARM_TONES, createDeviceAlarmToneId, DEFAULT_ALARM_TONE_ID, getAlarmTone, isBuiltInAlarmToneId, type AlarmTone, type AlarmToneId } from '../domain/alarm-tones';
+import NativeAlarmSounds from '../../modules/navo-alarm-sounds';
 import { addImportedSound, MAX_IMPORTED_SOUNDS, type ImportedAlarmSound } from '../domain/imported-alarm-sounds';
 import { ALARM_TONE_PREVIEWS } from '../data/alarm-tone-previews';
 import { canImportAlarmSounds, deleteImportedSoundFile, importAlarmSound, importedSoundUri } from '../services/imported-alarm-sounds';
@@ -29,11 +30,23 @@ export function AlarmSoundPicker({ value, onChange, disabled = false, onBusyChan
   const [previewing, setPreviewing] = useState<AlarmToneId | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [deviceTones, setDeviceTones] = useState<AlarmTone[]>([]);
+  const [showDeviceTones, setShowDeviceTones] = useState(false);
+  const [loadingDeviceTones, setLoadingDeviceTones] = useState(false);
   const mounted = useRef(true);
   const operation = useRef(false);
   const previewRevision = useRef(0);
   const locked = disabled || busy;
-  const tones: AlarmTone[] = [...ALARM_TONES, ...app.importedAlarmSounds.map((sound) => getAlarmTone(sound.id, app.importedAlarmSounds))];
+  const canBrowsePhoneSounds = Platform.OS === 'android' && typeof NativeAlarmSounds?.getDeviceAlarmSounds === 'function';
+  const currentTone = getAlarmTone(value, app.importedAlarmSounds);
+  const selectedDeviceTone = currentTone.deviceUri && value.startsWith('device:') ? [currentTone] : [];
+  const visibleDeviceTones = showDeviceTones ? deviceTones : selectedDeviceTone;
+  const tones: AlarmTone[] = [
+    ...ALARM_TONES.filter((tone: AlarmTone) => !tone.androidOnly || Platform.OS === 'android'),
+    ...app.importedAlarmSounds.map((sound) => getAlarmTone(sound.id, app.importedAlarmSounds)),
+    ...visibleDeviceTones,
+    ...selectedDeviceTone.filter((selected) => !visibleDeviceTones.some((tone) => tone.id === selected.id)),
+  ];
 
   const stopPreview = useCallback(() => {
     previewRevision.current += 1;
@@ -42,6 +55,10 @@ export function AlarmSoundPicker({ value, onChange, disabled = false, onBusyChan
   }, [player]);
   useFocusEffect(useCallback(() => stopPreview, [stopPreview]));
   useEffect(() => { if (disabled) stopPreview(); }, [disabled, stopPreview]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => { if (state !== 'active') stopPreview(); });
+    return () => subscription.remove();
+  }, [stopPreview]);
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; onBusyChange?.(false); };
@@ -56,7 +73,12 @@ export function AlarmSoundPicker({ value, onChange, disabled = false, onBusyChan
     const revision = previewRevision.current;
     try {
       const tone = getAlarmTone(id, app.importedAlarmSounds);
-      const source = tone.imported ? { uri: await importedSoundUri(tone.imported) } : isBuiltInAlarmToneId(id) ? ALARM_TONE_PREVIEWS[id] : undefined;
+      const deviceUri = tone.deviceUri && typeof NativeAlarmSounds?.getDeviceSoundUri === 'function'
+        ? await NativeAlarmSounds.getDeviceSoundUri(tone.deviceUri) : null;
+      const source = tone.imported ? { uri: await importedSoundUri(tone.imported) }
+        : tone.deviceUri ? deviceUri ? { uri: deviceUri } : undefined
+          : isBuiltInAlarmToneId(id) ? ALARM_TONE_PREVIEWS[id] : undefined;
+      if (tone.deviceUri && !source) throw new Error('This phone sound is unavailable or silent. Choose another sound.');
       if (!source || !mounted.current || revision !== previewRevision.current) return;
       player.replace(source);
       setPreviewing(id);
@@ -121,11 +143,34 @@ export function AlarmSoundPicker({ value, onChange, disabled = false, onBusyChan
     } finally { finishOperation(); }
   };
 
+  const browsePhoneSounds = async () => {
+    if (showDeviceTones) { stopPreview(); setShowDeviceTones(false); return; }
+    if (!canBrowsePhoneSounds || !startOperation()) return;
+    setLoadingDeviceTones(true);
+    try {
+      const sounds = await NativeAlarmSounds!.getDeviceAlarmSounds();
+      const choices = sounds.slice(0, 64).flatMap((sound) => {
+        try { return [getAlarmTone(createDeviceAlarmToneId(sound.uri, sound.label))]; }
+        catch { return []; }
+      });
+      if (mounted.current) {
+        setDeviceTones(choices);
+        setShowDeviceTones(true);
+        if (!choices.length) setProblem('No accessible phone alarm sounds were found. Phone alarm still uses your current Android default.');
+      }
+    } catch {
+      if (mounted.current) setProblem('Phone sounds could not be loaded. Your current sound selection is unchanged.');
+    } finally {
+      if (mounted.current) setLoadingDeviceTones(false);
+      finishOperation();
+    }
+  };
+
   const rows = (
     <View style={styles.list}>
       {tones.map((tone) => {
         const selected = value === tone.id;
-        const canPreview = Boolean(tone.imported || (isBuiltInAlarmToneId(tone.id) && ALARM_TONE_PREVIEWS[tone.id]));
+        const canPreview = Boolean(tone.imported || (tone.deviceUri && Platform.OS === 'android' && typeof NativeAlarmSounds?.getDeviceSoundUri === 'function') || (isBuiltInAlarmToneId(tone.id) && ALARM_TONE_PREVIEWS[tone.id]));
         const isPlaying = previewing === tone.id && status.playing;
         return (
           <View key={tone.id} style={[styles.row, { borderColor: selected ? colors.accent : colors.line, backgroundColor: selected ? colors.accentSoft : colors.surface }]}>
@@ -160,10 +205,16 @@ export function AlarmSoundPicker({ value, onChange, disabled = false, onBusyChan
   return (
     <View style={styles.root}>
       {scroll ? <ScrollView nestedScrollEnabled style={{ maxHeight: Math.min(260, height * 0.3) }} keyboardShouldPersistTaps="handled">{rows}</ScrollView> : rows}
+      {canBrowsePhoneSounds ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: showDeviceTones, disabled: locked }} disabled={locked} onPress={() => void browsePhoneSounds()}
+        style={[styles.importButton, { borderColor: colors.line, opacity: locked ? 0.5 : 1 }]}>
+        {loadingDeviceTones ? <ActivityIndicator color={colors.accent} /> : <Feather name="smartphone" size={17} color={colors.accent} />}
+        <Text style={[styles.importLabel, { color: colors.accent }]}>{loadingDeviceTones ? 'Loading phone sounds…' : showDeviceTones ? 'Hide phone sounds' : 'Choose from phone alarm sounds'}</Text>
+      </Pressable> : null}
+      {Platform.OS === 'android' ? <Text style={[styles.note, { color: colors.muted }]}>Phone sounds stay on your phone without another audio copy. Availability can change after a phone update; unavailable sounds use the notification default.</Text> : null}
       <Pressable accessibilityRole="button" accessibilityLabel={busy ? 'Preparing audio file' : 'Import alarm sound from files'} disabled={locked || !app.ready || !canImportAlarmSounds}
         onPress={() => void importSound()} style={[styles.importButton, { borderColor: colors.line, opacity: locked || !canImportAlarmSounds ? 0.5 : 1 }]}>
-        {busy ? <ActivityIndicator color={colors.accent} /> : <Feather name="upload" size={17} color={colors.accent} />}
-        <Text style={[styles.importLabel, { color: colors.accent }]}>{busy ? 'Preparing audio…' : 'Import from files'}</Text>
+        {busy && !loadingDeviceTones ? <ActivityIndicator color={colors.accent} /> : <Feather name="upload" size={17} color={colors.accent} />}
+        <Text style={[styles.importLabel, { color: colors.accent }]}>{busy && !loadingDeviceTones ? 'Preparing audio…' : 'Import from files'}</Text>
       </Pressable>
       <Text style={[styles.note, { color: colors.muted }]}>{canImportAlarmSounds ? 'MP3, M4A or WAV · up to 20 MB. Keeps the first 25 seconds on this device. Up to 10 imported sounds.' : 'Install an updated Navo build to import audio files.'}</Text>
       {problem || status.error ? <Text accessibilityRole="alert" style={[styles.note, { color: colors.danger }]}>{problem ?? 'This sound could not be played. Try another file.'}</Text> : null}

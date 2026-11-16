@@ -34,6 +34,7 @@ describe('adaptive location sampling policy', () => {
     expect(getLocationSamplingPolicy(stateAt(1_200), now)).toMatchObject({ profile: 'near', accuracy: 'high', timeInterval: 2_000, pausesUpdatesAutomatically: false });
     const wideRadius = stateAt(5_000);
     wideRadius.destinationAlarms[0].radiusM = 4_000;
+    wideRadius.destinationAlarms[0].alertDistancesM = [4_000];
     expect(getLocationSamplingPolicy(wideRadius, now).profile).toBe('near');
   });
 
@@ -81,13 +82,13 @@ describe('adaptive location sampling policy', () => {
     expect(getLocationSamplingPolicy(stateAt(3_600, { lastLocationAt: now - 10_000 }), now).profile).toBe('approaching');
   });
 
-  it('waits for departure at lower power only while confidently inside the current alert area', () => {
+  it('waits for departure at lower power only while confidently inside the destination area', () => {
     expect(getLocationSamplingPolicy(stateAt(100), now)).toMatchObject({ profile: 'departure', accuracy: 'balanced', timeInterval: 10_000, distanceInterval: 25, pausesUpdatesAutomatically: true });
     expect(getLocationSamplingPolicy(stateAt(480, { lastLocationAccuracyM: 30 }), now).profile).toBe('near');
-    const aging = stateAt(100, { lastLocationAt: now - 10_000 });
+    const aging = stateAt(100, { lastLocationAt: now - 2_000 });
     aging.destinationAlarms[0].armedAt = now - 60_000;
     expect(getLocationSamplingPolicy(aging, now).profile).toBe('departure');
-    aging.lastLocationAt = now - 15_000;
+    aging.lastLocationAt = now - 3_000;
     expect(getLocationSamplingPolicy(aging, now).profile).toBe('near');
   });
 

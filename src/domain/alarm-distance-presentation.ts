@@ -76,10 +76,14 @@ export function getAlarmDistancePresentation(
   const common = { distanceLabel, updatedLabel, isLastKnown, fixAt: locationAt };
 
   if (alerted) {
+    const pending = alarm.pendingEvents.length > 0;
     return {
-      ...common, status: 'alerted', statusLabel: alarm.pendingEvent ? 'Alert pending' : 'Alert sent',
-      detail: alarm.pendingEvent ? 'Arrival detected. Navo is trying to deliver your alert.' : 'This alarm stopped after detecting your arrival.',
-      tone: alarm.pendingEvent ? 'warning' : 'success',
+      ...common, status: 'alerted', statusLabel: pending ? 'Alert pending' : alarm.progress.missedNotified ? 'May have passed your stop' : 'Monitoring finished',
+      detail: pending ? 'A stop update is waiting to be delivered.'
+        : alarm.progress.missedNotified ? 'Movement away was detected after a close approach. Check your stop; GPS cannot confirm whether you got off.'
+          : alarm.progress.arrivalConfirmedAt !== null ? 'The destination area was reached. Monitoring for this trip has ended.'
+            : 'Selected alerts have finished. Turn this alarm on again for your next trip.',
+      tone: pending || alarm.progress.missedNotified ? 'warning' : 'success',
     };
   }
   if (reading.trackingProblem || !hasValidCoordinates(destination)) {
@@ -104,7 +108,18 @@ export function getAlarmDistancePresentation(
     return { ...common, status: 'locating', statusLabel: 'Finding your location', detail: 'Distance will appear after a usable GPS reading.', tone: 'neutral' };
   }
   if (alarm.watchState === 'awaiting-exit') {
-    return { ...common, status: 'waiting-to-leave', statusLabel: 'Waiting to leave the alert area', detail: 'Move outside the alert area before Navo checks for your next arrival.', tone: 'neutral' };
+    return { ...common, status: 'waiting-to-leave', statusLabel: 'Waiting to leave the destination area', detail: 'Move away from the destination before Navo checks for your next arrival.', tone: 'neutral' };
   }
-  return { ...common, status: 'monitoring', statusLabel: 'Monitoring', detail: `Alerts within ${alarm.radiusM} m of your saved destination.`, tone: 'success' };
+  if (alarm.pendingEvents.length) {
+    return { ...common, status: 'monitoring', statusLabel: 'Alert pending', detail: 'A stop update is waiting to be delivered. Location checks continue.', tone: 'warning' };
+  }
+  if (alarm.progress.arrivalConfirmedAt !== null && alarm.notifyOnMissed) {
+    return { ...common, status: 'monitoring', statusLabel: 'Destination area reached', detail: 'Checking for movement away. Turn this alarm off when you get off.', tone: 'success' };
+  }
+  const remaining = alarm.alertDistancesM.filter((distance) => !alarm.progress.notifiedDistancesM.includes(distance)).sort((a, b) => b - a);
+  const next = remaining[0];
+  const detail = next !== undefined ? `Next reminder at ${next >= 1000 ? `${next / 1000} km` : `${next} m`}.`
+    : alarm.notifyOnArrival ? 'Checking for two accurate readings in the destination area.'
+      : 'Checking for a close approach followed by sustained movement away.';
+  return { ...common, status: 'monitoring', statusLabel: 'Monitoring', detail, tone: 'success' };
 }

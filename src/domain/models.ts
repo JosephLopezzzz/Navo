@@ -70,12 +70,31 @@ export interface SavedDestination {
 }
 
 export type DestinationWatchState = 'off' | 'awaiting-exit' | 'monitoring' | 'alerted';
+export interface DestinationAlarmProgress {
+  notifiedDistancesM: number[];
+  distanceFixCounts: Record<string, number>;
+  arrivalFixes: number;
+  arrivalConfirmedAt: number | null;
+  arrivalNotified: boolean;
+  closeFixes: number;
+  closeConfirmedAt: number | null;
+  closestDistanceUpperM: number | null;
+  lastAccuracyM: number | null;
+  movingAwayFixes: number;
+  movingAwayStartedAt: number | null;
+  movingAwayStartDistanceUpperM: number | null;
+  missedNotified: boolean;
+}
 export interface DestinationAlarm {
   id: string;
   destinationId: string;
   ringtoneId: AlarmToneId;
   enabled: boolean;
   radiusM: number;
+  alertDistancesM: number[];
+  notifyOnArrival: boolean;
+  notifyOnMissed: boolean;
+  vibrationEnabled: boolean;
   watchState: DestinationWatchState;
   sessionId: string | null;
   armedAt: number | null;
@@ -84,13 +103,22 @@ export interface DestinationAlarm {
   consecutiveInsideFixes: number;
   firedAt: number | null;
   notificationIdentifier: string | null;
-  pendingEvent: DestinationAlarmEvent | null;
+  progress: DestinationAlarmProgress;
+  pendingEvents: DestinationAlarmEvent[];
+  /** Unacknowledged screen snapshots, separate from notification delivery retries. */
+  alertEvents: DestinationAlarmEvent[];
+  presentedEventIds: string[];
 }
 
+export type DestinationAlarmStage = 'approaching' | 'arrived' | 'missed';
 export interface DestinationAlarmEvent {
   id: string;
   alarmId: string;
   destinationId: string;
   sessionId: string;
+  stage: DestinationAlarmStage;
+  occurredAt: number;
+  distanceM: number;
+  thresholdM?: number;
   message: string;
 }

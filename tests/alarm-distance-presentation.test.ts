@@ -100,7 +100,7 @@ describe('active alarm distance presentation', () => {
     const result = getAlarmDistancePresentation(destination, {
       ...alarm, enabled: false, watchState: 'alerted', lastFixAt: now - 12_000, lastDistanceM: 400,
     }, reading, now);
-    expect(result.statusLabel).toBe('Alert sent');
+    expect(result.statusLabel).toBe('Monitoring finished');
     expect(result.distanceLabel).toBe('Last known: About 400 m away');
     expect(result.updatedLabel).toBe('Updated 12 s ago');
   });
@@ -108,9 +108,19 @@ describe('active alarm distance presentation', () => {
   it('does not claim an alert was sent before pending notification delivery is acknowledged', () => {
     const result = getAlarmDistancePresentation(destination, {
       ...alarm, enabled: false, watchState: 'alerted', lastFixAt: now - 1000, lastDistanceM: 400,
-      pendingEvent: { id: 'event', alarmId: alarm.id, destinationId: destination.id, sessionId: 'session', message: 'Near Recto' },
+      pendingEvents: [{ id: 'event', alarmId: alarm.id, destinationId: destination.id, sessionId: 'session', stage: 'approaching', occurredAt: now, distanceM: 400, thresholdM: 500, message: 'Near Recto' }],
     }, reading, now);
     expect(result.statusLabel).toBe('Alert pending');
+    expect(result.tone).toBe('warning');
+  });
+
+  it('describes possible missed stops cautiously instead of claiming arrival', () => {
+    const result = getAlarmDistancePresentation(destination, {
+      ...alarm, enabled: false, watchState: 'alerted',
+      progress: { ...alarm.progress, missedNotified: true },
+    }, reading, now);
+    expect(result.statusLabel).toBe('May have passed your stop');
+    expect(result.detail).toContain('GPS cannot confirm');
     expect(result.tone).toBe('warning');
   });
 

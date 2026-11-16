@@ -1,0 +1,14 @@
+{
+  "kind": "design-proposal-only",
+  "generatedFrom": "generate-proposal.mjs",
+  "themeSource": "src/theme/colors.ts and DESIGN.md",
+  "illustrationSource": "Original SVG geometry, system typography, and stage copy; interaction reference supplied by user",
+  "outputs": [
+    "dark-stages.svg",
+    "dark-stages.png",
+    "light-stages.svg",
+    "light-stages.png",
+    "index.html"
+  ],
+  "noRuntimeWiring": true
+}
