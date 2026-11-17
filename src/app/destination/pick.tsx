@@ -9,16 +9,15 @@ import { createDestinationAlarm, DEFAULT_DESTINATION_RADIUS_M, disarmDestination
 import { AlarmAlertSettings } from '../../components/AlarmAlertSettings';
 import { getAlarmTone, type AlarmToneId } from '../../domain/alarm-tones';
 import { AlarmSoundPicker } from '../../components/AlarmSoundPicker';
-import { RailStationDiagram } from '../../components/RailStationDiagram';
-import { getRailDiagramStations } from '../../components/rail-diagram-layout';
-import { getRailDiagramPalette } from '../../components/rail-diagram-tokens';
+import { RailStationMapPicker } from '../../components/RailStationMapPicker';
+import { createRailStationSelection } from '../../domain/rail-map';
 import type { DestinationKind, DestinationSource, RailStationReference, SavedDestination } from '../../domain/models';
 import { useAppState } from '../../state/AppStateProvider';
 import { useNavoColors } from '../../theme/colors';
 import { clearPendingDestinationMapSelection, takePendingDestinationMapSelection } from '../../state/destination-map-selection';
 import { createPlacesSearchSessionId, discoverNearbyPlaces, resolvePlaceSuggestion, suggestPlaces, type TomTomPlaceSuggestion } from '../../services/tomtom';
 import { railLines } from '../../data/routes';
-import { getRailStation, railStations, searchRailStations, type RailStation } from '../../data/rail-stations';
+import { getRailStation, type RailStation } from '../../data/rail-stations';
 import { formatCoordinates, parseCoordinates } from '../../domain/coordinates';
 import { useScreenActionScope } from '../../hooks/useScreenActionScope';
 
@@ -136,10 +135,7 @@ function DestinationForm({
   const resolveController = useRef<AbortController | null>(null);
   const nearbyController = useRef<AbortController | null>(null);
   const busyRef = useRef(false);
-  const railMapRequest = useRef<{ railRequestId: string; stationId: string } | null>(null);
-  const requestedStationOpened = useRef(false);
   const selectedRailLine = railLines.find((line) => line.id === railLineId) ?? railLines[0]!;
-  const orderedRailStations = useMemo(() => getRailDiagramStations(selectedRailLine.id, railStations), [selectedRailLine.id]);
   const savedForKind = useMemo(() => {
     return app.destinations
       .filter((destination) => destination.kind === kind)
@@ -154,20 +150,15 @@ function DestinationForm({
   }, []);
 
   useFocusEffect(useCallback(() => {
-    const selection = takePendingDestinationMapSelection(railMapRequest.current ?? undefined);
-    railMapRequest.current = null;
+    const selection = takePendingDestinationMapSelection();
     if (!selection) return;
-    if (selection.railStation && kind !== 'rail-station') return;
+    if (kind === 'rail-station' || selection.railStation) return;
     setCoordinate({ latitude: selection.latitude, longitude: selection.longitude });
     setName(selection.name);
     setSubtitle(selection.subtitle);
     setSource(selection.source);
     setProviderPlaceId(selection.providerPlaceId);
     setRailStation(selection.railStation);
-    if (selection.railStation) {
-      setRailLineId(selection.railStation.lineId);
-      setRailCandidateStationId(selection.railStation.stationId);
-    }
     setPointConfirmed(true);
     setStep('review');
     setSaveProblem(null);
@@ -180,7 +171,6 @@ function DestinationForm({
     setPointConfirmed,
     setProviderPlaceId,
     setRailStation,
-    setRailLineId,
     setSaveProblem,
     setSearchProblem,
     setSource,
@@ -376,25 +366,51 @@ function DestinationForm({
     router.push({ pathname: '/destination/pick', params: { destinationId: destination.id } });
   };
 
-  const selectRailStation = useCallback((station: RailStation) => {
-    if (railMapRequest.current) return;
+  const confirmRailStation = (stationId: string) => {
+    const selection = createRailStationSelection(stationId, selectedRailLine.id);
+    if (!selection || saving || soundBusy) return;
     searchController.current?.abort();
     clearPendingDestinationMapSelection();
-    const request = { railRequestId: newId('rail-map'), stationId: station.id };
-    railMapRequest.current = request;
-    setRailCandidateStationId(station.id);
+    setCoordinate({ latitude: selection.latitude, longitude: selection.longitude });
+    setName(selection.name);
+    setSubtitle(selection.subtitle);
+    setSource(selection.source);
+    setProviderPlaceId(undefined);
+    setRailStation(selection.railStation);
+    setRailCandidateStationId(stationId);
+    setPointConfirmed(true);
+    setStep('review');
+    setSaveProblem(null);
     setSuggestions([]);
     setNearbySuggestions([]);
     setShouldSearch(false);
     setSearchProblem(null);
-    router.push({ pathname: '/destination/map', params: { kind: 'rail-station', stationId: station.id, railRequestId: request.railRequestId } });
-  }, [setSuggestions, setNearbySuggestions, setShouldSearch, setSearchProblem]);
+  };
 
-  useEffect(() => {
-    if (!initialStation || requestedStationOpened.current) return;
-    requestedStationOpened.current = true;
-    selectRailStation(initialStation);
-  }, [initialStation, selectRailStation]);
+  const changeKind = (nextKind: DestinationKind) => {
+    if (nextKind === kind) return;
+    searchController.current?.abort();
+    nearbyController.current?.abort();
+    cancelResolution();
+    clearPendingDestinationMapSelection();
+    setSearchLoading(false);
+    setNearbyLoading(false);
+    setCoordinate(null);
+    setPointConfirmed(false);
+    setName('');
+    setSubtitle('');
+    setSource(null);
+    setProviderPlaceId(undefined);
+    setRailStation(undefined);
+    setRailCandidateStationId(undefined);
+    setKind(nextKind);
+    setSelectedNearbyCategory(null);
+    setQuery('');
+    setSuggestions([]);
+    setNearbySuggestions([]);
+    setSearchProblem(null);
+    setShouldSearch(false);
+  };
 
   const saveDestination = async () => {
     const isCurrent = captureAction();
@@ -477,11 +493,6 @@ function DestinationForm({
   const visibleSuggestions = kind === 'rail-station' ? [] : suggestions.length > 0 ? suggestions : nearbySuggestions;
   const showingNearby = kind !== 'rail-station' && suggestions.length === 0 && nearbySuggestions.length > 0;
   const coordinateInput = kind === 'place' ? parseCoordinates(query) : null;
-  const matchingRailStations = searchRailStations(selectedRailLine.id, query);
-  const visibleRailStationIds = query.trim() ? matchingRailStations.map((station) => station.id) : undefined;
-  const railDirection = selectedRailLine.id === 'lrt-2'
-    ? 'West → East · schematic'
-    : `${selectedRailLine.direction.replace(' to ', ' → ')} · schematic`;
   const selectedStation = getRailStation(railStation?.stationId);
   const permissionSummaryText = 'Uses your current location with TomTom to find nearby stops.';
   const footer = step === 'review' ? (
@@ -493,6 +504,18 @@ function DestinationForm({
       <Text style={[styles.footnote, { color: colors.muted }]}>Alarm stays off until you switch it on.</Text>
     </>
   ) : undefined;
+
+  if (step === 'choose' && kind === 'rail-station') {
+    return <RailStationMapPicker lineId={selectedRailLine.id} selectedStationId={railCandidateStationId}
+      title={destinationId ? 'Rail station' : 'Add rail alarm'} onClose={() => router.back()}
+      onOtherDestinations={() => changeKind('place')}
+      onLineChange={(lineId) => { setRailLineId(lineId); setRailCandidateStationId(undefined); }}
+      onSelect={(stationId) => {
+        const station = getRailStation(stationId);
+        if (station?.lineId === selectedRailLine.id) setRailCandidateStationId(station.id);
+      }} onConfirm={confirmRailStation}
+      storageProblem={app.storageProblem} onRetryStorage={() => void app.refreshState()} />;
+  }
 
   return (
     <Screen scrollRef={screenScrollRef} footer={footer}>
@@ -533,29 +556,7 @@ function DestinationForm({
                     accessibilityRole="radio"
                     accessibilityState={{ checked: selected }}
                     accessibilityLabel={destinationKindLabel(item.id)}
-                    onPress={() => {
-                      if (item.id === kind) return;
-                      searchController.current?.abort();
-                      nearbyController.current?.abort();
-                      cancelResolution();
-                      setSearchLoading(false);
-                      setNearbyLoading(false);
-                      setCoordinate(null);
-                      setPointConfirmed(false);
-                      setName('');
-                      setSubtitle('');
-                      setSource(null);
-                      setProviderPlaceId(undefined);
-                      setRailStation(undefined);
-                      setRailCandidateStationId(undefined);
-                      setKind(item.id);
-                      setSelectedNearbyCategory(null);
-                      setQuery('');
-                      setSuggestions([]);
-                      setNearbySuggestions([]);
-                      setSearchProblem(null);
-                      setShouldSearch(false);
-                    }}
+                    onPress={() => changeKind(item.id)}
                     style={[styles.kindOption, selected && { backgroundColor: colors.surface }]}
                   >
                     <Feather name={item.icon} size={16} color={selected ? colors.accent : colors.muted} />
@@ -565,28 +566,6 @@ function DestinationForm({
               })}
             </View>
           </View>
-
-          {kind === 'rail-station' ? (
-            <View style={styles.railBrowse}>
-              <View style={styles.lineOptions}>
-                {railLines.map((line) => {
-                  const selected = line.id === selectedRailLine.id;
-                  const palette = getRailDiagramPalette(line.id, colors.isDark);
-                  return (
-                    <Pressable motion="compact"
-                      key={line.id}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: selected }}
-                      onPress={() => { if (line.id !== selectedRailLine.id) setRailCandidateStationId(undefined); setRailLineId(line.id); setQuery(''); setSuggestions([]); setSearchProblem(null); setShouldSearch(false); }}
-                      style={[styles.lineChip, { borderColor: selected ? palette.rail : colors.line, backgroundColor: selected ? palette.wash : colors.surface }]}
-                    >
-                      <Text style={[styles.lineChipText, { color: selected ? palette.text : colors.ink }]}>{line.name}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          ) : null}
 
           <View style={[styles.searchInputWrap, { backgroundColor: colors.surface, borderColor: colors.line }]}>
             <Feather name="search" size={18} color={colors.muted} />
@@ -725,20 +704,7 @@ function DestinationForm({
             </View>
           )}
 
-          {kind === 'rail-station' ? (
-            <View style={styles.stationSection}>
-              <View style={styles.railHeading}>
-                <Text accessibilityRole="header" style={[styles.railTitle, { color: colors.ink }]}>Stations on {selectedRailLine.name}</Text>
-                <Text style={[styles.railCount, { color: colors.muted }]}>{selectedRailLine.stops.length}</Text>
-              </View>
-              <Text style={[styles.railDirection, { color: colors.muted }]}>{railDirection}</Text>
-              <Text style={[styles.stationHint, { color: colors.muted }]}>Tap a station to confirm its location. Station search works offline.</Text>
-              {matchingRailStations.length === 0 ? <Subtle>No stations match “{query.trim()}” on {selectedRailLine.name}. Try another name or line.</Subtle> : null}
-              <RailStationDiagram lineId={selectedRailLine.id} lineName={selectedRailLine.name} stations={orderedRailStations}
-                visibleStationIds={visibleRailStationIds} selectedStationId={railCandidateStationId} onSelect={selectRailStation} />
-            </View>
-          ) : (
-            <View style={styles.savedSection}>
+          <View style={styles.savedSection}>
               <Text accessibilityRole="header" style={[styles.railTitle, { color: colors.ink }]}>{savedForKind.length ? 'Saved on this device' : 'Start with a nearby result or search'}</Text>
               {savedForKind.length ? savedForKind.map((destination) => (
                 <Pressable motion="card" key={destination.id} accessibilityRole="button" onPress={() => browseSavedDestination(destination)} style={[styles.savedRow, { borderBottomColor: colors.line }]}>
@@ -750,8 +716,7 @@ function DestinationForm({
                   <Feather name="chevron-right" size={16} color={colors.quiet} />
                 </Pressable>
               )) : <Subtle>{kind === 'place' ? 'Choose a nearby category, search by name or address, or enter coordinates. Saved places will appear here.' : 'Nearby picks appear after you choose “Find nearby.” Saved stops will appear here for quick access.'}</Subtle>}
-            </View>
-          )}
+          </View>
 
           {coordinate && pointConfirmed && (
             <Pressable accessibilityRole="button" onPress={() => setStep('review')} style={styles.keepCurrent}>

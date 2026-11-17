@@ -12,7 +12,8 @@ import { setPendingDestinationMapSelection, type DestinationMapSelection } from 
 import type { DestinationKind } from '../../domain/models';
 import { formatCoordinates } from '../../domain/coordinates';
 import { useNavoColors } from '../../theme/colors';
-import { getRailStation, RAIL_CATALOG_VERSION, type RailStation } from '../../data/rail-stations';
+import { getRailStation, type RailStation } from '../../data/rail-stations';
+import { createRailStationSelection } from '../../domain/rail-map';
 import { createDestinationMapStyle } from '../../services/destination-map-style';
 
 const MANILA_CENTER: [number, number] = [120.9842, 14.5995];
@@ -74,21 +75,9 @@ function DestinationMap({ params, station }: { params: DestinationMapParams; sta
   const initialLongitude = station?.longitude ?? validCoordinate(params.longitude, -180, 180) ?? MANILA_CENTER[0];
   const initialLatitude = station?.latitude ?? validCoordinate(params.latitude, -90, 90) ?? MANILA_CENTER[1];
   const initialZoom = station ? 17 : params.latitude && params.longitude ? 16 : 13;
-  const stationSelection: DestinationMapSelection | null = station ? {
-    latitude: station.latitude,
-    longitude: station.longitude,
-    name: /\bstation$/i.test(station.name) ? station.name : `${station.name} Station`,
-    subtitle: `${station.lineId.toUpperCase()} · ${station.city}`,
-    source: 'rail-catalog',
-    railStation: {
-      stationId: station.id,
-      lineId: station.lineId,
-      catalogVersion: RAIL_CATALOG_VERSION,
-      coordinateSourceUrl: station.sourceUrl,
-      reviewedAt: station.reviewedAt,
-    },
-    railRequestId: params.railRequestId,
-  } : null;
+  const stationSelection = station
+    ? createRailStationSelection(station.id, station.lineId, params.railRequestId)
+    : null;
   const [center, setCenter] = useState<Coordinate>({ latitude: initialLatitude, longitude: initialLongitude });
   const [zoom, setZoom] = useState(initialZoom);
   const [selection, setSelection] = useState<DestinationMapSelection>({
