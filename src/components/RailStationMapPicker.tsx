@@ -46,6 +46,7 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
   const [viewportRevision, setViewportRevision] = useState(0);
   const [projectedLabels, setProjectedLabels] = useState<{ scope: string; points: ProjectedStation[] }>({ scope: '', points: [] });
   const [preview, setPreview] = useState<StationPreview>({ scope: '', stationId: null, kind: null });
+  const [pointerProbeHud, setPointerProbeHud] = useState({ root: 0, map: 0, raw: 0, down: 0, up: 0, hold: 0, forced: false, last: 'waiting' });
   const [attempt, setAttempt] = useState(0);
   const [loadedScope, setLoadedScope] = useState<string>();
   const [styleScope, setStyleScope] = useState<string>();
@@ -58,6 +59,9 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
   const cameraRef = useRef<CameraRef>(null);
   const mapRef = useRef<MapRef>(null);
   const projectionRevision = useRef(0);
+  const pointerProbeLast = useRef({ root: 0, map: 0 });
+  const pointerProbeRawLast = useRef(0);
+  const pointerProbeRootRef = useRef<View>(null);
   const suppressSourceTap = useRef(false);
   const holdOrigin = useRef<{ x: number; y: number } | null>(null);
   const cameraIntent = useRef<'line' | 'station'>(selectedStationId ? 'station' : 'line');
@@ -100,6 +104,60 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
   const projectionScope = `${mapScope}:${currentLine.id}:${viewportRevision}:${mapSize.width}:${mapSize.height}:${isActive}:${pathname}`;
   const previewScope = `${projectionScope}:${query}:${showStations}`;
   const previewStationId = preview.scope === previewScope && !mapMoving ? preview.stationId : null;
+
+  useEffect(() => {
+    // Temporary diagnostic: observe Fabric events before component/event-plugin routing.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const rawEmitter = require('react-native/Libraries/Core/RawEventEmitter').default as {
+      addListener: (name: string, callback: (event: { nativeEvent: Record<string, unknown> }) => void) => { remove: () => void };
+    };
+    const subscription = rawEmitter.addListener('topPointerMove', (event) => {
+      const now = Date.now();
+      if (now - pointerProbeRawLast.current < 250) return;
+      pointerProbeRawLast.current = now;
+      const pointer = event.nativeEvent;
+      setPointerProbeHud((current) => ({ ...current, raw: current.raw + 1, last: `raw ${String(pointer.pointerType)}` }));
+      console.warn('NAVO_POINTER_PROBE_RAW', JSON.stringify({
+        type: pointer.pointerType, buttons: pointer.buttons, pressure: pointer.pressure,
+        offsetX: pointer.offsetX, offsetY: pointer.offsetY, clientX: pointer.clientX, clientY: pointer.clientY,
+        target: typeof pointer.target === 'number' ? pointer.target : typeof pointer.target,
+      }));
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        pointerProbeRootRef.current?.setNativeProps({ onPointerMove: true, onPointerMoveCapture: true });
+        setPointerProbeHud((current) => ({ ...current, forced: true, last: 'native move flags forced' }));
+        console.warn('NAVO_POINTER_PROBE', 'native root MOVE flags forced after mount');
+      } catch {
+        setPointerProbeHud((current) => ({ ...current, last: 'native move flag force failed' }));
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const logPointerProbe = (channel: 'root' | 'map', pointer: {
+    pointerType: string; buttons: number; pressure: number; offsetX: number; offsetY: number;
+    clientX: number; clientY: number; target?: unknown;
+  }) => {
+    const now = Date.now();
+    if (now - pointerProbeLast.current[channel] < 250) return;
+    pointerProbeLast.current[channel] = now;
+    setPointerProbeHud((current) => ({
+      ...current, [channel]: current[channel] + 1,
+      last: `${channel} ${pointer.pointerType} ${Math.round(pointer.offsetX)},${Math.round(pointer.offsetY)}`,
+    }));
+    console.warn('NAVO_POINTER_PROBE', JSON.stringify({
+      channel, type: pointer.pointerType, buttons: pointer.buttons, pressure: pointer.pressure,
+      offsetX: pointer.offsetX, offsetY: pointer.offsetY, clientX: pointer.clientX, clientY: pointer.clientY,
+      target: typeof pointer.target === 'number' ? pointer.target : typeof pointer.target,
+      mapMoving, isActive, styleReady: styleScope === mapScope,
+      cacheReady: projectedLabels.scope === projectionScope, cacheCount: projectedLabels.points.length,
+    }));
+  };
 
   const clearPreview = useCallback((kind?: 'hover' | 'hold') => {
     setPreview((current) => {
@@ -199,7 +257,13 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
   };
 
   return (
-    <View onLayout={(event) => {
+    <View ref={pointerProbeRootRef} collapsable={false}
+      onPointerMove={(event) => logPointerProbe('root', event.nativeEvent)}
+      onPointerEnter={(event) => setPointerProbeHud((current) => ({ ...current, last: `enter ${event.nativeEvent.pointerType}` }))}
+      onPointerOver={(event) => setPointerProbeHud((current) => ({ ...current, last: `over ${event.nativeEvent.pointerType}` }))}
+      onPointerDownCapture={(event) => setPointerProbeHud((current) => ({ ...current, down: current.down + 1, last: `down ${event.nativeEvent.pointerType}` }))}
+      onPointerUpCapture={(event) => setPointerProbeHud((current) => ({ ...current, up: current.up + 1, last: `up ${event.nativeEvent.pointerType}` }))}
+      onPointerMoveCapture={(event) => logPointerProbe('root', event.nativeEvent)} onLayout={(event) => {
       const { width, height } = event.nativeEvent.layout;
       if (width > 0 && height > 0) setMapSize((current) => current.width === width && current.height === height ? current : { width, height });
     }} style={[styles.root, { backgroundColor: colors.background }]}>
@@ -211,6 +275,7 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
         onDidFailLoadingMap={() => setLoadIssue({ scope: mapScope, message: 'Map imagery could not load. Retry the map or use the offline station catalog.' })}
         onPress={() => undefined}
         onLongPress={(event) => {
+          setPointerProbeHud((current) => ({ ...current, hold: current.hold + 1, last: 'native hold' }));
           // MapLibre iOS requires an onPress listener to dispatch onLongPress.
           suppressSourceTap.current = true;
           const [x, y] = event.nativeEvent.point;
@@ -219,6 +284,7 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
         }}
         onPointerMove={(event) => {
           const pointer = event.nativeEvent;
+          logPointerProbe('map', pointer);
           if (pointer.pointerType !== 'mouse' && pointer.pointerType !== 'pen') return;
           if (pointer.buttons !== 0 || (pointer.pointerType === 'pen' && pointer.pressure > 0)) { clearPreview('hover'); return; }
           previewAt({ x: pointer.offsetX, y: pointer.offsetY }, 'hover');
@@ -405,6 +471,10 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
         </View>
       </KeyboardAvoidingView>
       {mapStyle ? <Text pointerEvents="none" style={[styles.attribution, { bottom: ornamentBottom + 72, backgroundColor: colors.surface, color: colors.muted }]}>{attribution ?? '© TomTom · © OpenStreetMap'}</Text> : null}
+      <Text pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+        style={{ position: 'absolute', top: 56, left: 8, zIndex: 99, elevation: 99, fontSize: 11, lineHeight: 16, padding: 3, backgroundColor: colors.surface, color: colors.ink }}>
+        {`RAW:${pointerProbeHud.raw} R:${pointerProbeHud.root} M:${pointerProbeHud.map} D:${pointerProbeHud.down} U:${pointerProbeHud.up} H:${pointerProbeHud.hold} F:${pointerProbeHud.forced ? 1 : 0} ${pointerProbeHud.last} C:${projectedLabels.scope === projectionScope ? 'ready' : 'stale'}/${projectedLabels.points.length}`}
+      </Text>
     </View>
   );
 }

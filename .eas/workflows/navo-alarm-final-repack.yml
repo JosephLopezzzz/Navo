@@ -1,0 +1,13 @@
+name: Navo alarm screens final APK
+
+jobs:
+  repack_alarm_apk:
+    name: Package final alarm screen and sound retry
+    type: repack
+    environment: preview
+    params:
+      build_id: dc44d83a-f1b6-4f2a-a820-6e942ef48624
+      profile: preview
+      embed_bundle_assets: true
+      js_bundle_only: true
+      message: Navo alarm screens and final cue retry - Android build 4
