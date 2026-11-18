@@ -3,6 +3,7 @@ import { getRailStation, RAIL_CATALOG_VERSION, type RailStation } from '../data/
 import type { DestinationMapSelection } from '../state/destination-map-selection';
 
 type StationCoordinate = Pick<RailStation, 'latitude' | 'longitude'>;
+export type RailStationScreenPoint = { stationId: string; x: number; y: number };
 
 function validStationCoordinate(station: StationCoordinate): boolean {
   return Number.isFinite(station.latitude) && station.latitude >= -90 && station.latitude <= 90
@@ -65,6 +66,32 @@ export function resolveRailMapStationTap(
     const latitudeDelta = station.latitude - tap.latitude;
     const distance = longitudeDelta * longitudeDelta + latitudeDelta * latitudeDelta;
     if (distance < nearestDistance) { nearest = station; nearestDistance = distance; }
+  }
+  return nearest;
+}
+
+/** Hover/hold hit testing uses the same logical-point space as native map projection. */
+export function resolveRailStationScreenHit(
+  stations: readonly RailStation[],
+  projected: readonly RailStationScreenPoint[],
+  point: { x: number; y: number },
+  hitRadius = 24,
+): RailStation | null {
+  const lineId = stations[0]?.lineId;
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || !Number.isFinite(hitRadius) || hitRadius < 0
+    || !stations.every((station) => station.lineId === lineId)) return null;
+  const allowed = new Map(stations.map((station) => [station.id, station]));
+  const maximumDistance = hitRadius * hitRadius;
+  let nearest: RailStation | null = null;
+  let nearestDistance = Infinity;
+  for (const candidate of projected) {
+    const station = allowed.get(candidate.stationId);
+    if (!station || !Number.isFinite(candidate.x) || !Number.isFinite(candidate.y)) continue;
+    const distance = (candidate.x - point.x) ** 2 + (candidate.y - point.y) ** 2;
+    if (distance <= maximumDistance && distance < nearestDistance) {
+      nearest = station;
+      nearestDistance = distance;
+    }
   }
   return nearest;
 }

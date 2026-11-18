@@ -5,7 +5,7 @@ import { ActivityIndicator, Animated, Easing, Keyboard, KeyboardAvoidingView, Pl
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRailStation, railStations, searchRailStations, type RailStation } from '../data/rail-stations';
 import { railLines } from '../data/routes';
-import { createRailLineFeature, createRailStationFeatures, getRailLineBounds, resolveRailMapStationTap } from '../domain/rail-map';
+import { createRailLineFeature, createRailStationFeatures, getRailLineBounds, resolveRailMapStationTap, resolveRailStationScreenHit } from '../domain/rail-map';
 import { createDestinationMapStyle } from '../services/destination-map-style';
 import { fetchMapAttribution } from '../services/tomtom';
 import { spacing, useNavoColors } from '../theme/colors';
@@ -30,6 +30,7 @@ interface RailStationMapPickerProps {
 const MAP_TIMEOUT_MS = 15_000;
 const LABEL_ZOOM = 15;
 type ProjectedStation = { stationId: string; x: number; y: number };
+type StationPreview = { scope: string; stationId: string | null; kind: 'hover' | 'hold' | null };
 
 /** Catalog-only rail workspace. Camera changes never create or move a selection. */
 export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, onSelect, onConfirm, onClose, onOtherDestinations, title = 'Add rail alarm', storageProblem, onRetryStorage }: RailStationMapPickerProps) {
@@ -44,6 +45,7 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
   const [mapMoving, setMapMoving] = useState(false);
   const [viewportRevision, setViewportRevision] = useState(0);
   const [projectedLabels, setProjectedLabels] = useState<{ scope: string; points: ProjectedStation[] }>({ scope: '', points: [] });
+  const [preview, setPreview] = useState<StationPreview>({ scope: '', stationId: null, kind: null });
   const [attempt, setAttempt] = useState(0);
   const [loadedScope, setLoadedScope] = useState<string>();
   const [styleScope, setStyleScope] = useState<string>();
@@ -56,6 +58,8 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
   const cameraRef = useRef<CameraRef>(null);
   const mapRef = useRef<MapRef>(null);
   const projectionRevision = useRef(0);
+  const suppressSourceTap = useRef(false);
+  const holdOrigin = useRef<{ x: number; y: number } | null>(null);
   const cameraIntent = useRef<'line' | 'station'>(selectedStationId ? 'station' : 'line');
   const fittedScope = useRef<string | undefined>(undefined);
   const currentLine = railLines.find((line) => line.id === lineId) ?? railLines[0]!;
@@ -93,14 +97,35 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
     return { top: requestedTop * ratio, right: horizontal, bottom: requestedBottom * ratio, left: horizontal };
   }, [insets.top, insets.bottom, topHeight, bottomHeight, mapHeight, mapSize.width, keyboardOcclusion]);
   const ornamentBottom = Math.max(0, Math.min(mapHeight - 32, keyboardOcclusion + insets.bottom + bottomHeight + spacing.lg));
-  const projectionScope = `${mapScope}:${currentLine.id}:${selected?.id ?? ''}:${zoom >= LABEL_ZOOM}:${viewportRevision}:${mapSize.width}:${mapSize.height}:${isActive}:${pathname}`;
+  const projectionScope = `${mapScope}:${currentLine.id}:${viewportRevision}:${mapSize.width}:${mapSize.height}:${isActive}:${pathname}`;
+  const previewScope = `${projectionScope}:${query}:${showStations}`;
+  const previewStationId = preview.scope === previewScope && !mapMoving ? preview.stationId : null;
+
+  const clearPreview = useCallback((kind?: 'hover' | 'hold') => {
+    setPreview((current) => {
+      if ((kind && current.kind !== kind) || current.stationId === null) return current;
+      return { scope: current.scope, stationId: null, kind: null };
+    });
+  }, []);
+
+  const previewAt = (point: { x: number; y: number }, kind: 'hover' | 'hold') => {
+    if (mapMoving || !isActive || styleScope !== mapScope || projectedLabels.scope !== projectionScope) {
+      clearPreview(kind);
+      return;
+    }
+    const station = resolveRailStationScreenHit(stations, projectedLabels.points, point);
+    setPreview((current) => {
+      const stationId = station?.id ?? null;
+      if (current.scope === previewScope && current.stationId === stationId && current.kind === kind) return current;
+      return { scope: previewScope, stationId, kind: stationId ? kind : null };
+    });
+  };
 
   const projectLabels = useCallback(async () => {
     const revision = ++projectionRevision.current;
     const map = mapRef.current;
     if (!map || !isActive || styleScope !== mapScope) return;
-    const labelledStations = zoom >= LABEL_ZOOM ? stations : selected ? [selected] : [];
-    const projected = await Promise.all(labelledStations.map(async (station) => {
+    const projected = await Promise.all(stations.map(async (station) => {
       try {
         // Installed native implementations return DIP on Android and points on iOS.
         const [x, y] = await map.project([station.longitude, station.latitude]);
@@ -109,7 +134,7 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
     }));
     if (revision !== projectionRevision.current) return;
     setProjectedLabels({ scope: projectionScope, points: projected.filter((point): point is ProjectedStation => point !== null) });
-  }, [projectionScope, isActive, styleScope, mapScope, zoom, stations, selected]);
+  }, [projectionScope, isActive, styleScope, mapScope, stations]);
 
   useEffect(() => {
     if (mapMoving) return;
@@ -117,7 +142,12 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
     const timer = setTimeout(() => { void projectLabels(); }, 80);
     return () => { clearTimeout(timer); projectionRevision.current += 1; };
   }, [projectLabels, mapMoving]);
-  useEffect(() => () => { projectionRevision.current += 1; }, []);
+  useEffect(() => {
+    holdOrigin.current = null;
+    // A fresh gesture explicitly re-enables selection; a finished hold never does.
+    suppressSourceTap.current = true;
+  }, [previewScope]);
+  useEffect(() => () => { projectionRevision.current += 1; suppressSourceTap.current = true; holdOrigin.current = null; }, []);
 
   useEffect(() => {
     if (!mapStyle) return;
@@ -153,6 +183,7 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
 
   const chooseStation = (station: RailStation) => {
     if (!isActive || station.lineId !== currentLine.id) return;
+    clearPreview();
     cameraIntent.current = 'station';
     onSelect(station.id);
     setQuery('');
@@ -178,7 +209,43 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
         attributionPosition={{ bottom: ornamentBottom, right: spacing.sm }} logoPosition={{ bottom: ornamentBottom, left: spacing.sm }}
         onDidFinishLoadingStyle={() => setStyleScope(mapScope)} onDidFinishRenderingMapFully={markReady}
         onDidFailLoadingMap={() => setLoadIssue({ scope: mapScope, message: 'Map imagery could not load. Retry the map or use the offline station catalog.' })}
-        onRegionWillChange={() => { projectionRevision.current += 1; setMapMoving(true); }}
+        onPress={() => undefined}
+        onLongPress={(event) => {
+          // MapLibre iOS requires an onPress listener to dispatch onLongPress.
+          suppressSourceTap.current = true;
+          const [x, y] = event.nativeEvent.point;
+          holdOrigin.current = { x, y };
+          previewAt({ x, y }, 'hold');
+        }}
+        onPointerMove={(event) => {
+          const pointer = event.nativeEvent;
+          if (pointer.pointerType !== 'mouse' && pointer.pointerType !== 'pen') return;
+          if (pointer.buttons !== 0 || (pointer.pointerType === 'pen' && pointer.pressure > 0)) { clearPreview('hover'); return; }
+          previewAt({ x: pointer.offsetX, y: pointer.offsetY }, 'hover');
+        }}
+        onPointerLeave={() => { holdOrigin.current = null; clearPreview(); }}
+        onPointerCancel={() => { suppressSourceTap.current = true; holdOrigin.current = null; clearPreview(); }}
+        onPointerDown={(event) => {
+          if (event.nativeEvent.pointerType === 'mouse' || event.nativeEvent.pointerType === 'pen') suppressSourceTap.current = false;
+          clearPreview('hover');
+        }}
+        onTouchStart={(event) => {
+          suppressSourceTap.current = event.nativeEvent.touches.length > 1;
+          holdOrigin.current = null;
+          clearPreview();
+        }}
+        onTouchMove={(event) => {
+          const touch = event.nativeEvent;
+          if (touch.touches.length > 1) { suppressSourceTap.current = true; holdOrigin.current = null; clearPreview(); return; }
+          if (holdOrigin.current && Math.hypot(touch.locationX - holdOrigin.current.x, touch.locationY - holdOrigin.current.y) > 8) {
+            holdOrigin.current = null;
+            clearPreview('hold');
+          }
+        }}
+        onTouchEnd={() => { holdOrigin.current = null; clearPreview('hold'); }}
+        onTouchCancel={() => { suppressSourceTap.current = true; holdOrigin.current = null; clearPreview(); }}
+        onBlur={() => { suppressSourceTap.current = true; holdOrigin.current = null; clearPreview(); }}
+        onRegionWillChange={() => { projectionRevision.current += 1; holdOrigin.current = null; clearPreview(); setMapMoving(true); }}
         onRegionDidChange={(event) => {
           if (Number.isFinite(event.nativeEvent.zoom)) setZoom(event.nativeEvent.zoom);
           setViewportRevision((current) => current + 1);
@@ -191,6 +258,7 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
         <GeoJSONSource id="rail-station-points" data={stationFeatures} hitbox={{ top: 24, right: 24, bottom: 24, left: 24 }}
           onPress={(event) => {
             event.stopPropagation();
+            if (suppressSourceTap.current) return;
             const [longitude, latitude] = event.nativeEvent.lngLat;
             const hitStationIds = event.nativeEvent.features.flatMap((feature) => {
               const stationId = feature.properties?.stationId;
@@ -200,7 +268,7 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
             if (station) chooseStation(station);
           }}>
           <Layer id="rail-station-circles" type="circle" paint={{
-            'circle-radius': ['case', ['==', ['get', 'stationId'], selected?.id ?? ''], 17, 11],
+            'circle-radius': ['case', ['==', ['get', 'stationId'], selected?.id ?? ''], 17, ['==', ['get', 'stationId'], previewStationId ?? ''], 14, 11],
             'circle-radius-transition': { duration: reduceMotion ? 0 : 110, delay: 0 },
             'circle-color': ['case', ['==', ['get', 'stationId'], selected?.id ?? ''], colors.surface, palette.ball],
             'circle-stroke-color': palette.rail,
@@ -216,12 +284,19 @@ export function RailStationMapPicker({ lineId, selectedStationId, onLineChange, 
           const station = getRailStation(point.stationId);
           if (!station || station.lineId !== currentLine.id || point.x < -180 || point.x > mapSize.width + 20 || point.y < -80 || point.y > mapHeight + 80) return null;
           const isSelected = selected?.id === station.id;
+          const isPreview = previewStationId === station.id;
+          if (!isSelected && !isPreview && zoom < LABEL_ZOOM) return null;
           const labelWidth = Math.min(150, Math.max(1, mapSize.width - spacing.xs * 2));
-          const preferredLeft = point.x + 23 + labelWidth <= mapSize.width - spacing.xs ? point.x + 23 : point.x - 23 - labelWidth;
+          const previewTopEdge = insets.top + spacing.xs + topHeight + spacing.sm;
+          const keepLeft = isPreview && (point.x > mapSize.width / 2 || (floatingControlFits && point.y < previewTopEdge + 56));
+          const preferredLeft = !keepLeft && point.x + 23 + labelWidth <= mapSize.width - spacing.xs ? point.x + 23 : point.x - 23 - labelWidth;
           const labelLeft = Math.max(spacing.xs, Math.min(mapSize.width - spacing.xs - labelWidth, preferredLeft));
-          return <View key={station.id} style={[styles.projectedStation, { left: point.x, top: point.y }]}>
+          const previewBottomEdge = mapHeight - ornamentBottom - 72 - 13 * window.fontScale - spacing.xs;
+          const previewLabelHeight = 34 * window.fontScale + 6;
+          const labelTop = isPreview ? Math.max(previewTopEdge, Math.min(point.y - 12, previewBottomEdge - previewLabelHeight)) - point.y : -12;
+          return <View key={station.id} style={[styles.projectedStation, { left: point.x, top: point.y, zIndex: isPreview ? 2 : isSelected ? 1 : 0 }]}>
             {isSelected ? <Feather name="check" size={16} color={palette.rail} style={styles.projectedCheck} /> : null}
-            <Text style={[styles.projectedLabel, { left: labelLeft - point.x, width: labelWidth, backgroundColor: colors.surface, color: colors.ink, borderColor: isSelected ? palette.rail : colors.line, fontWeight: isSelected ? '700' : '500' }]}>{station.name}</Text>
+            <Text style={[styles.projectedLabel, { left: labelLeft - point.x, top: labelTop, width: labelWidth, backgroundColor: colors.surface, color: colors.ink, borderColor: isSelected || isPreview ? palette.rail : colors.line, fontWeight: isSelected || isPreview ? '700' : '500' }]}>{station.name}</Text>
           </View>;
         }) : null}
       </View>

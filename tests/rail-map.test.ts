@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getRailStation, railStations, RAIL_CATALOG_VERSION, type RailLineId } from '../src/data/rail-stations';
-import { createRailLineFeature, createRailStationFeatures, createRailStationSelection, getRailLineBounds, resolveRailMapStationTap } from '../src/domain/rail-map';
+import { createRailLineFeature, createRailStationFeatures, createRailStationSelection, getRailLineBounds, resolveRailMapStationTap, resolveRailStationScreenHit } from '../src/domain/rail-map';
 import { getRailDiagramStations } from '../src/components/rail-diagram-layout';
 
 const lineIds: RailLineId[] = ['lrt-1', 'lrt-2', 'mrt-3'];
@@ -110,5 +110,40 @@ describe('geographic rail-only station picker', () => {
     expect(resolveRailMapStationTap(stations, { latitude: NaN, longitude: 121 }, [anonas.id])).toBeNull();
     expect(resolveRailMapStationTap([...stations, getRailStation('mrt-3-ayala')!], anonas, [anonas.id])).toBeNull();
     expect(createRailStationFeatures([...stations, getRailStation('mrt-3-ayala')!]).features).toEqual([]);
+  });
+});
+
+describe('rail station name previews', () => {
+  const stations = getRailDiagramStations('lrt-2', railStations);
+  const anonas = { stationId: 'lrt-2-anonas', x: 238, y: 422 };
+  const katipunan = { stationId: 'lrt-2-katipunan', x: 258, y: 414 };
+
+  it('previews the nearest circle when expanded hover/hold targets overlap', () => {
+    for (const projected of [[katipunan, anonas], [anonas, katipunan]]) {
+      expect(resolveRailStationScreenHit(stations, projected, anonas)?.id).toBe(anonas.stationId);
+      expect(resolveRailStationScreenHit(stations, projected, katipunan)?.id).toBe(katipunan.stationId);
+    }
+  });
+
+  it('does not preview distant map space and respects the logical-point hit radius', () => {
+    expect(resolveRailStationScreenHit(stations, [anonas], { x: 262, y: 422 })?.id).toBe(anonas.stationId);
+    expect(resolveRailStationScreenHit(stations, [anonas], { x: 263, y: 422 })).toBeNull();
+    expect(resolveRailStationScreenHit(stations, [anonas], { x: 250, y: 422 }, 10)).toBeNull();
+    expect(resolveRailStationScreenHit(stations, [], anonas)).toBeNull();
+  });
+
+  it('ignores stale identities, other lines, and invalid projected positions', () => {
+    const stale = { stationId: 'mrt-3-ayala', x: 238, y: 422 };
+    expect(resolveRailStationScreenHit(stations, [stale], anonas)).toBeNull();
+    expect(resolveRailStationScreenHit(stations, [{ ...anonas, x: NaN }], anonas)).toBeNull();
+    expect(resolveRailStationScreenHit(stations, [{ ...anonas, y: Infinity }], anonas)).toBeNull();
+    expect(resolveRailStationScreenHit([...stations, getRailStation(stale.stationId)!], [anonas], anonas)).toBeNull();
+  });
+
+  it('rejects invalid pointer positions and hit radii', () => {
+    expect(resolveRailStationScreenHit(stations, [anonas], { x: NaN, y: 422 })).toBeNull();
+    expect(resolveRailStationScreenHit(stations, [anonas], { x: 238, y: Infinity })).toBeNull();
+    expect(resolveRailStationScreenHit(stations, [anonas], anonas, -1)).toBeNull();
+    expect(resolveRailStationScreenHit(stations, [anonas], anonas, Infinity)).toBeNull();
   });
 });
